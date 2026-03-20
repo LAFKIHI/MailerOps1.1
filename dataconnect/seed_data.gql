@@ -1,0 +1,96 @@
+mutation CreateDemoData @transaction @auth(level: USER, insecureReason: "Seed data mutation is for development purposes only and is safe to expose to all logged in users.") {
+  user_insertMany(data: [
+    {
+      id: "6e2d9a3b-2f8c-4a1d-b3e6-9f8a7c6b5d4e",
+      displayName: "Alice Smith",
+      createdAt: "2023-01-01T10:00:00Z",
+      email: "alice@example.com",
+      photoUrl: "https://example.com/alice.jpg"
+    },
+    {
+      id: "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+      displayName: "Bob Johnson",
+      createdAt: "2023-01-02T11:00:00Z",
+      email: "bob@example.com",
+      photoUrl: "https://example.com/bob.jpg"
+    }
+  ])
+  movie_insertMany(data: [
+    {
+      id: "f8c7b6a5-d4e3-2109-8765-43210fedcba9",
+      title: "The Great Adventure",
+      year: 2022,
+      createdAt: "2023-01-01T12:00:00Z",
+      summary: "A thrilling tale of exploration and discovery.",
+      genres: ["Adventure", "Action"],
+      runtime: 120
+    },
+    {
+      id: "1a2b3c4d-5e6f-789a-bcde-f01234567890",
+      title: "Mystery in the Mansion",
+      year: 2021,
+      createdAt: "2023-01-02T13:00:00Z",
+      summary: "A classic whodunit set in a sprawling estate.",
+      genres: ["Mystery", "Thriller"],
+      runtime: 95
+    }
+  ])
+  movieList_insertMany(data: [
+    {
+      id: "c9d8e7f6-a5b4-c3d2-e1f0-9876543210fe",
+      userId: "6e2d9a3b-2f8c-4a1d-b3e6-9f8a7c6b5d4e",
+      name: "Alice's Favorite Movies",
+      isPublic: true,
+      createdAt: "2023-01-03T14:00:00Z",
+      updatedAt: "2023-01-03T14:00:00Z",
+      description: "A collection of my all-time favorite films."
+    },
+    {
+      id: "3e4f5a6b-7c8d-9012-3456-7890fedcba12",
+      userId: "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+      name: "Bob's Watchlist",
+      isPublic: false,
+      createdAt: "2023-01-04T15:00:00Z",
+      updatedAt: "2023-01-04T15:00:00Z",
+      description: "Movies I plan to watch soon."
+    }
+  ])
+  movieListEntry_insertMany(data: [
+    {
+      movieListId: "c9d8e7f6-a5b4-c3d2-e1f0-9876543210fe",
+      movieId: "f8c7b6a5-d4e3-2109-8765-43210fedcba9",
+      position: 1,
+      note: "Highly recommended!"
+    },
+    {
+      movieListId: "c9d8e7f6-a5b4-c3d2-e1f0-9876543210fe",
+      movieId: "1a2b3c4d-5e6f-789a-bcde-f01234567890",
+      position: 2,
+      note: "Classic mystery."
+    }
+  ])
+  watch_insertMany(data: [
+    {
+      id: "7b8c9d0e-1f2a-3b4c-5d6e-7f8a9b0c1d2e",
+      userId: "6e2d9a3b-2f8c-4a1d-b3e6-9f8a7c6b5d4e",
+      movieId: "f8c7b6a5-d4e3-2109-8765-43210fedcba9",
+      createdAt: "2023-01-05T16:00:00Z",
+      watchDate: "2023-01-04T00:00:00Z",
+      location: "Home",
+      notes: "Loved the special effects."
+    }
+  ])
+  review_insertMany(data: [
+    {
+      id: "d0e1f2a3-b4c5-6d7e-8f9a-0b1c2d3e4f5a",
+      userId: "6e2d9a3b-2f8c-4a1d-b3e6-9f8a7c6b5d4e",
+      movieId: "f8c7b6a5-d4e3-2109-8765-43210fedcba9",
+      watchId: "7b8c9d0e-1f2a-3b4c-5d6e-7f8a9b0c1d2e",
+      rating: 5,
+      createdAt: "2023-01-05T17:00:00Z",
+      updatedAt: "2023-01-05T17:00:00Z",
+      isPublic: true,
+      reviewText: "An absolute masterpiece! Highly recommend watching this film."
+    }
+  ])
+}

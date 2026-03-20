@@ -1,0 +1,44 @@
+# --- OS & IDE Specific ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# --- Environment Secrets (CRITICAL) ---
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+auth.json
+
+# --- Node / JavaScript (if applicable) ---
+node_modules/
+npm-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# --- .NET / C# / Visual Studio ---
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+_ReSharper*/
+[Tt]est[Rr]esult*/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+
+# --- Logs & Temp ---
+logs/
+*.log
+tmp/
+temp/

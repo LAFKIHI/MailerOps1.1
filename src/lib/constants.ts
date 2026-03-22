@@ -130,9 +130,56 @@ export function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function fmtDate(str: string) {
-  if (!str) return '—';
-  return new Date(str + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+/**
+ * Robust date parser that handles:
+ * - YYYY-MM-DD
+ * - DD/MM/YYYY
+ * - DD-MM-YYYY
+ * - Date objects
+ */
+export function parseSafeDate(input: any): Date | null {
+  if (!input) return null;
+  if (input instanceof Date) return isNaN(input.getTime()) ? null : input;
+  
+  const str = String(input).trim();
+  if (!str) return null;
+
+  // Try parsing directly first
+  let d = new Date(str);
+  if (!isNaN(d.getTime())) return d;
+
+  // Handle ISO-like with T12:00:00 suffix often used in our code
+  if (str.includes('T')) {
+    d = new Date(str.split('T')[0] + 'T12:00:00');
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  // Handle DD/MM/YYYY or DD-MM-YYYY
+  const parts = str.split(/[/-]/);
+  if (parts.length === 3) {
+    // Check if it's DD/MM/YYYY
+    if (parts[2].length === 4) {
+      d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T12:00:00`);
+    } 
+    // Check if it's YYYY/MM/DD
+    else if (parts[0].length === 4) {
+      d = new Date(`${parts[0]}-${parts[1]}-${parts[2]}T12:00:00`);
+    }
+    
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  return null;
+}
+
+export function fmtDate(str: any) {
+  const d = parseSafeDate(str);
+  if (!d) return '—';
+  try {
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+  } catch (e) {
+    return '—';
+  }
 }
 
 export function genId() {

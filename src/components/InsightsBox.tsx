@@ -35,17 +35,28 @@ export default function InsightsBox() {
   if (!FEATURES.SUGGESTIONS || suggestions.length === 0 || !isOpen) return null;
 
   return (
-    <div className="fixed top-16 right-4 z-50 w-80 bg-[#131619] border border-[#252b32] rounded-lg shadow-xl overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-[#252b32] bg-[#0d0f11]">
-        <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-[#4d8ff0]">💡 System Insights</span>
-        <button onClick={() => setIsOpen(false)} className="text-[#5a6478] hover:text-[#e2e8f0] text-xs transition-colors">✕</button>
+    <div className="fixed top-24 right-8 z-50 w-80 bg-background/80 backdrop-blur-xl border border-primary/20 rounded-[2rem] shadow-2xl shadow-primary/10 overflow-hidden animate-in slide-in-from-right-8 duration-500">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-border/50 bg-primary/5">
+        <div className="flex items-center gap-2">
+          <span className="text-primary animate-pulse">💡</span>
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground">Operational Intelligence</span>
+        </div>
+        <button onClick={() => setIsOpen(false)} className="w-6 h-6 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all active:scale-90">✕</button>
       </div>
-      <div className="p-3 space-y-2 max-h-48 overflow-y-auto">
+      <div className="p-6 space-y-3 max-h-64 overflow-y-auto">
         {suggestions.map(alert => (
-          <div key={alert.id} className={`p-2 rounded border text-[11px] font-mono ${alert.type === 'warning' ? 'bg-[#2e0d0d] border-[#f04d4d]/30 text-[#f04d4d]' : 'bg-[#0d1e3e] border-[#4d8ff0]/30 text-[#4d8ff0]'}`}>
-            {alert.type === 'warning' ? '⚠ ' : 'ℹ '} {alert.message}
+          <div key={alert.id} className={`p-4 rounded-2xl border flex gap-3 animate-in fade-in slide-in-from-top-2 duration-300 ${
+            alert.type === 'warning' 
+              ? 'bg-destructive/5 border-destructive/20 text-destructive' 
+              : 'bg-primary/5 border-primary/20 text-primary'
+          }`}>
+            <span className="text-xs">{alert.type === 'warning' ? '⚠️' : 'ℹ️'}</span>
+            <p className="text-[11px] font-bold leading-relaxed">{alert.message}</p>
           </div>
         ))}
+      </div>
+      <div className="px-6 py-3 bg-muted/20 border-t border-border/50 text-center">
+         <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest opacity-40 italic">Shadow Layer Active</span>
       </div>
     </div>
   );

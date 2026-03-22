@@ -53,7 +53,7 @@ export interface IP {
   userId: string;
   domainId: string;
   ip: string;
-  status?: 'fresh' | 'scaled' | 'burned';
+  status?: 'fresh' | 'warming' | 'scaled' | 'burned';
   warmup_day?: number;
   current_daily_send?: number;
   total_sent?: number;
@@ -139,6 +139,10 @@ export interface DBState {
   deliverySessions: DeliverySession[];
   postmasterStats: PostmasterStat[];
   postmasterCredentials: PostmasterCredential[];
+  testSeeds: TestSeed[];
+  testSeedItems: TestSeedItem[];
+  testSeedEvaluations: TestSeedEvaluation[];
+  postmasterTasks: PostmasterTask[];
   providers: string[];
   groups: string[];
   currentUser: { uid: string; email: string | null } | null;
@@ -168,14 +172,22 @@ export function domainHealthScore(d: Domain, latestRep: Reputation | null): numb
   else if (iRep === 'MEDIUM') score += 13;
   else if (iRep === 'LOW')    score += 5;
 
-  // Spam rate (0-20)
-  const rawRate = parseFloat((d.spamRate ?? latestRep?.spamRate ?? '').replace('%', ''));
-  const rate = isNaN(rawRate) ? 0 : rawRate;
-  if (rate === 0)        score += 20;
-  else if (rate < 0.1)   score += 16;
-  else if (rate < 0.3)   score += 10;
-  else if (rate < 1)     score += 4;
-  // >= 1% = 0
+  // Spam rate (0-20) only when value is available.
+  let rawRate: number | null = null;
+  const rawInput = d.spamRate ?? latestRep?.spamRate;
+  if (typeof rawInput === 'number') {
+    rawRate = rawInput;
+  } else if (typeof rawInput === 'string' && rawInput.trim().length > 0) {
+    const parsed = parseFloat(rawInput.replace('%', ''));
+    rawRate = Number.isNaN(parsed) ? null : parsed;
+  }
+  if (rawRate !== null) {
+    if (rawRate === 0)        score += 20;
+    else if (rawRate < 0.1)   score += 16;
+    else if (rawRate < 0.3)   score += 10;
+    else if (rawRate < 1)     score += 4;
+    // >= 1% = 0
+  }
 
   return Math.min(100, score);
 }
@@ -221,4 +233,65 @@ export interface DeliverySession {
   untouched: number;    // not processed yet this session
   notes: string;
   createdAt: string;
+}
+
+// ── TEST-SEED Module Types ──────────────────────────────────────────
+
+export interface TestSeed {
+  id: string;
+  userId: string;
+  delivery_id: string;
+  server_id: string;
+  domain_id: string;
+  ip_id: string;
+  name?: string | null;
+  status: 'draft' | 'active' | 'waiting_results' | 'completed' | 'failed';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TestSeedItem {
+  id: string;
+  userId: string;
+  test_seed_id: string;
+  day1_target_sent: number;
+  day2_target_sent: number;
+  day1_actual_sent?: number | null;
+  day2_actual_sent?: number | null;
+  postmaster_day1?: string | null;
+  postmaster_day2?: string | null;
+  status: 'pending' | 'in_progress' | 'ready' | 'validated';
+  notes?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TestSeedEvaluation {
+  id: string;
+  userId: string;
+  test_seed_id: string;
+  spam_rate: 'low' | 'medium' | 'high';
+  ip_reputation: 'bad' | 'medium' | 'good';
+  domain_reputation: 'bad' | 'medium' | 'good';
+  feedback_loop: 'yes' | 'no';
+  delivery_errors: 'low' | 'medium' | 'high';
+  final_result: 'good' | 'bad' | 'pending';
+  decision_reason?: string | null;
+  evaluated_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PostmasterTask {
+  id: string;
+  userId: string;
+  test_seed_item_id: string;
+  task_type: 'check_day1' | 'check_day2' | 'refresh_status';
+  scheduled_for: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  result_payload?: any;
+  error_message?: string;
+  executed_at?: string;
+  created_at: string;
+  updated_at: string;
 }

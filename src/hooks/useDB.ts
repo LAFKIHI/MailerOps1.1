@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   DBState, Task, Server, Domain, IP, Warmup, Reputation,
   DBAction, Folder, DeliveryPreset, Delivery, DeliverySession, PostmasterStat, PostmasterCredential,
+  TestSeed, TestSeedItem, TestSeedEvaluation, PostmasterTask,
 } from '../lib/types';
 import { DEFAULT_ACTIONS, DEFAULT_DELIVERIES, DEFAULT_FOLDERS, genId, todayStr } from '../lib/constants';
-import { apiCreate, apiDelete, apiGet, apiUpdate, apiLogSending, apiGetIPStats, apiGetDeliveryHealth } from '../lib/api';
+import { apiCreate, apiDelete, apiGet, apiUpdate, apiLogSending, apiGetIPStats, apiGetDeliveryHealth, apiReputationUpsert, apiReputationCleanup } from '../lib/api';
 import { FEATURES } from '../lib/features';
+import { parseIngestionText } from '../lib/ingestion';
 
 const STORAGE_KEY = 'mailerops_user';
 
@@ -15,6 +17,7 @@ const EMPTY: DBState = {
   deliveryPresets: [], providers: ['Godaddy','Namecheap','Google','Cloudflare'],
   groups: ['Production','Development','Staging'],
   deliveries: [], deliverySessions: [], postmasterStats: [], postmasterCredentials: [],
+  testSeeds: [], testSeedItems: [], testSeedEvaluations: [], postmasterTasks: [],
   currentUser: null, isReady: false,
 };
 
@@ -38,6 +41,8 @@ function clearStoredUser() {
 
 export function useDB() {
   const [state, setState] = useState<DBState>(EMPTY);
+  const pendingReputationUpserts = useRef<Set<string>>(new Set());
+  const pendingWarmupUpserts = useRef<Set<string>>(new Set());
 
   const setReady = useCallback((ready: boolean) => {
     setState(prev => ({ ...prev, isReady: ready }));
@@ -54,6 +59,10 @@ export function useDB() {
       'deliveries','deliverySessions',
       'postmasterStats',
       'postmasterCredentials',
+      'testSeeds',
+      'testSeedItems',
+      'testSeedEvaluations',
+      'postmasterTasks',
     ] as const;
 
     const results = await Promise.all(COLS.map(col => apiGet(col, uid).catch(() => [])));
@@ -73,6 +82,10 @@ export function useDB() {
       deliverySessions: results[10] as DeliverySession[],
       postmasterStats:  results[11] as PostmasterStat[],
       postmasterCredentials: results[12] as PostmasterCredential[],
+      testSeeds:        results[13] as TestSeed[],
+      testSeedItems:    results[14] as TestSeedItem[],
+      testSeedEvaluations: results[15] as TestSeedEvaluation[],
+      postmasterTasks:  results[16] as PostmasterTask[],
       isReady: true,
     }));
   }, []);
@@ -169,6 +182,12 @@ export function useDB() {
 
   const createServer = useCallback(async (name: string, rdp = '', tags: string[] = []) => {
     if (!state.currentUser) return null;
+    const existing = state.servers.find(
+      s => s.name.toLowerCase() === name.toLowerCase() && !s.archived
+    );
+    if (existing) {
+      throw new Error(`Server "${name}" already exists`);
+    }
     const normalizedRdp = rdp.trim();
     const payload = {
       userId: state.currentUser.uid,
@@ -221,52 +240,86 @@ export function useDB() {
     reputationToDelete.forEach(r => removeLocal('reputation', r.id));
   }, [state, state.currentUser, removeLocal]);
 
-  const importDomains = useCallback(async (serverId: string, csv: string) => {
+  const importDomains = useCallback(async (defaultServerId: string, csv: string) => {
     if (!state.currentUser) return [];
-    const lines = csv.split('\n').map(l => l.trim()).filter(Boolean);
-
+    
+    // Use smart parser
+    const parsedRows = parseIngestionText(csv);
     const createdDomains: Domain[] = [];
     const createdIps: IP[] = [];
 
-    for (const line of lines) {
-      const parts = line.includes(';') ? line.split(';').map(p => p.trim()) : line.split(',').map(p => p.trim());
-      if (parts.length < 2) continue;
-      const [domain, ip, provider = 'Godaddy', status = 'inbox', unsubscribe = 'NO', spamRate = '0%', lastCheck = new Date().toLocaleDateString('en-GB')] = parts;
-      const domPayload = {
-        userId: state.currentUser.uid,
-        serverId,
-        domain,
-        provider,
-        status,
-        unsubscribe,
-        spamRate,
-        lastCheck,
-      };
-      const createdDomain = await apiCreate<Domain>('domains', domPayload, state.currentUser.uid);
-      createdDomains.push(createdDomain);
+    for (const row of parsedRows) {
+      const { domain, ip, serverHint, provider, status } = row;
+      if (!domain) continue;
 
-      const ipPayload = {
-        userId: state.currentUser.uid,
-        domainId: createdDomain.id,
-        ip,
-      };
-      const createdIp = await apiCreate<IP>('ips', ipPayload, state.currentUser.uid);
-      createdIps.push(createdIp);
+      // Identify target server
+      let targetServerId = defaultServerId;
+      
+      // ONLY override if a serverHint is present AND we can find a server for it in the CURRENT state.
+      // If we are in a bulk import (like from Servers.tsx), defaultServerId is already correct.
+      if (serverHint) {
+        const hLow = serverHint.toLowerCase();
+        const hintNum = serverHint.replace(/\D/g, '');
+        const found = state.servers.find(s => 
+          !s.archived && (
+            s.name.toLowerCase() === hLow || 
+            s.id === hintNum
+          )
+        );
+        if (found) {
+          targetServerId = found.id;
+        } else {
+          // If not found in stale state, we TRUST defaultServerId if it's not empty
+          if (!targetServerId) {
+             // fallback to name matching or something? 
+             // Logic: if defaultServerId is empty, it means we ARE relying on hints.
+          }
+        }
+      }
+
+      try {
+        const domPayload = {
+          userId: state.currentUser.uid,
+          serverId: targetServerId,
+          domain,
+          provider,
+          status: status as any,
+          unsubscribe: 'NO' as const,
+          spamRate: '0%',
+          lastCheck: todayStr(),
+        };
+        const createdDomain = await apiCreate<Domain>('domains', domPayload, state.currentUser.uid);
+        createdDomains.push(createdDomain);
+
+        const ipPayload = {
+          userId: state.currentUser.uid,
+          domainId: createdDomain.id,
+          ip,
+        };
+        const createdIp = await apiCreate<IP>('ips', ipPayload, state.currentUser.uid);
+        createdIps.push(createdIp);
+      } catch (e: any) {
+        console.error('Failed to import row:', row, e);
+        // Continue with other rows if one fails? Or throw? 
+        // User saw "IMPORT FAILED", suggesting we should probably catch and keep going but track errors.
+      }
     }
 
-    setState(prev => ({
-      ...prev,
-      domains: [...prev.domains, ...createdDomains],
-      ips: [...prev.ips, ...createdIps],
-    }));
+    if (createdDomains.length > 0) {
+      setState(prev => ({
+        ...prev,
+        domains: [...prev.domains, ...createdDomains],
+        ips: [...prev.ips, ...createdIps],
+      }));
+    }
 
     return createdDomains;
-  }, [state.currentUser]);
+  }, [state.currentUser, state.domains, state.servers]);
 
   const updateDomain = useCallback(async (id: string, data: Partial<Domain>) => {
     if (!state.currentUser) return;
     const patch = { ...data } as Partial<Domain>;
-    if ((patch as any).status) patch.lastCheck = new Date().toLocaleDateString('en-GB');
+    if ((patch as any).status) patch.lastCheck = todayStr();
     const updated = await apiUpdate<Domain>('domains', id, patch, state.currentUser.uid);
     updateLocal('domains', updated);
   }, [state.currentUser, updateLocal]);
@@ -292,10 +345,18 @@ export function useDB() {
 
   const addWarmup = useCallback(async (ipId: string, sent: number, date?: string) => {
     if (!state.currentUser) return;
-    const payload = { userId: state.currentUser.uid, ipId, date: date ?? todayStr(), sent };
+    const ip = state.ips.find(i => i.id === ipId);
+    if (!ip) throw new Error(`IP with id ${ipId} not found`);
+    const payload = {
+      userId: state.currentUser.uid,
+      ipId,
+      domainId: ip.domainId,
+      date: date ?? todayStr(),
+      sent
+    };
     const created = await apiCreate<Warmup>('warmups', payload, state.currentUser.uid);
     updateLocal('warmups', created);
-  }, [state.currentUser, updateLocal]);
+  }, [state.currentUser, state.ips, updateLocal]);
 
   const updateWarmup = useCallback(async (id: string, sent: number) => {
     if (!state.currentUser) return;
@@ -316,6 +377,28 @@ export function useDB() {
     updateLocal('reputation', created);
   }, [state.currentUser, updateLocal]);
 
+  const upsertReputation = useCallback(async (domainId: string, date: string, domainRep: string, ipRep: string, spamRate: string) => {
+    if (!state.currentUser) return;
+    const key = `${domainId}-${date}`;
+    if (pendingReputationUpserts.current.has(key)) return;
+    pendingReputationUpserts.current.add(key);
+    try {
+      const result = await apiReputationUpsert({ domainId, date, domainRep, ipRep, spamRate }, state.currentUser.uid);
+      updateLocal('reputation', result);
+    } finally {
+      pendingReputationUpserts.current.delete(key);
+    }
+  }, [state.currentUser, updateLocal]);
+
+  const cleanupReputation = useCallback(async () => {
+    if (!state.currentUser) return;
+    const { success, deleted } = await apiReputationCleanup(state.currentUser.uid);
+    if (success && deleted > 0) {
+      await refreshData();
+    }
+    return { success, deleted };
+  }, [state.currentUser, refreshData]);
+
   const updateReputation = useCallback(async (id: string, data: Partial<Reputation>) => {
     if (!state.currentUser) return;
     const updated = await apiUpdate<Reputation>('reputation', id, data, state.currentUser.uid);
@@ -327,6 +410,101 @@ export function useDB() {
     await apiDelete('reputation', id, state.currentUser.uid);
     removeLocal('reputation', id);
   }, [state.currentUser, removeLocal]);
+
+  const createTestSeed = useCallback(async (data: Omit<TestSeed, 'id' | 'userId' | 'created_at' | 'updated_at'>) => {
+    if (!state.currentUser) return;
+    
+    // Rule A: One active test per delivery
+    const existing = state.testSeeds.find(s => 
+      s.delivery_id === data.delivery_id && 
+      ['draft', 'active', 'waiting_results'].includes(s.status)
+    );
+    if (existing) {
+      throw new Error("This sublist is already under test.");
+    }
+
+    const now = new Date().toISOString();
+    const payload = { ...data, userId: state.currentUser.uid, created_at: now, updated_at: now };
+    const created = await apiCreate<TestSeed>('testSeeds', payload, state.currentUser.uid);
+    updateLocal('testSeeds', created);
+    return created;
+  }, [state.currentUser, state.testSeeds, updateLocal]);
+
+  const updateTestSeed = useCallback(async (id: string, data: Partial<TestSeed>) => {
+    if (!state.currentUser) return;
+    const now = new Date().toISOString();
+    const updated = await apiUpdate<TestSeed>('testSeeds', id, { ...data, updated_at: now }, state.currentUser.uid);
+    updateLocal('testSeeds', updated);
+    return updated;
+  }, [state.currentUser, updateLocal]);
+
+  const deleteTestSeed = useCallback(async (id: string) => {
+    if (!state.currentUser) return;
+
+    const relatedItems = state.testSeedItems.filter((item) => item.test_seed_id === id);
+    const relatedItemIds = new Set(relatedItems.map((item) => item.id));
+    const relatedEvaluations = state.testSeedEvaluations.filter((evaluation) => evaluation.test_seed_id === id);
+    const relatedTasks = state.postmasterTasks.filter((task) => relatedItemIds.has(task.test_seed_item_id));
+
+    await apiDelete('testSeeds', id, state.currentUser.uid);
+
+    removeLocal('testSeeds', id);
+    relatedItems.forEach((item) => removeLocal('testSeedItems', item.id));
+    relatedEvaluations.forEach((evaluation) => removeLocal('testSeedEvaluations', evaluation.id));
+    relatedTasks.forEach((task) => removeLocal('postmasterTasks', task.id));
+  }, [removeLocal, state.currentUser, state.postmasterTasks, state.testSeedEvaluations, state.testSeedItems]);
+
+  const createTestSeedItem = useCallback(async (data: Omit<TestSeedItem, 'id' | 'userId' | 'created_at' | 'updated_at'>) => {
+    if (!state.currentUser) return;
+    const now = new Date().toISOString();
+    const payload = { ...data, userId: state.currentUser.uid, created_at: now, updated_at: now };
+    const created = await apiCreate<TestSeedItem>('testSeedItems', payload, state.currentUser.uid);
+    updateLocal('testSeedItems', created);
+    return created;
+  }, [state.currentUser, updateLocal]);
+
+  const createTestSeedEvaluation = useCallback(async (data: Omit<TestSeedEvaluation, 'id' | 'userId' | 'created_at' | 'updated_at'>) => {
+    if (!state.currentUser) return;
+    const now = new Date().toISOString();
+    const payload = { ...data, userId: state.currentUser.uid, created_at: now, updated_at: now };
+    const created = await apiCreate<TestSeedEvaluation>('testSeedEvaluations', payload, state.currentUser.uid);
+    updateLocal('testSeedEvaluations', created);
+    return created;
+  }, [state.currentUser, updateLocal]);
+
+  const createPostmasterTask = useCallback(async (data: Omit<PostmasterTask, 'id' | 'userId' | 'created_at' | 'updated_at'>) => {
+    if (!state.currentUser) return;
+    const now = new Date().toISOString();
+    const payload = { ...data, userId: state.currentUser.uid, created_at: now, updated_at: now };
+    const created = await apiCreate<PostmasterTask>('postmasterTasks', payload, state.currentUser.uid);
+    updateLocal('postmasterTasks', created);
+    return created;
+  }, [state.currentUser, updateLocal]);
+
+  const updateTestSeedItem = useCallback(async (id: string, data: Partial<TestSeedItem>) => {
+    if (!state.currentUser) return;
+    const updated = await apiUpdate<TestSeedItem>('testSeedItems', id, data, state.currentUser.uid);
+    updateLocal('testSeedItems', updated);
+  }, [state.currentUser, updateLocal]);
+
+  const upsertWarmup = useCallback(async (ipId: string, sent: number, date?: string) => {
+    if (!state.currentUser) return;
+    const d = date ?? todayStr();
+    const key = `${ipId}-${d}`;
+    if (pendingWarmupUpserts.current.has(key)) return;
+    pendingWarmupUpserts.current.add(key);
+    const existing = state.warmups.find(w => w.ipId === ipId && w.date === d);
+    try {
+      if (existing) {
+        const updated = await apiUpdate<Warmup>('warmups', existing.id, { sent }, state.currentUser.uid);
+        updateLocal('warmups', updated);
+      } else {
+        await addWarmup(ipId, sent, d);
+      }
+    } finally {
+      pendingWarmupUpserts.current.delete(key);
+    }
+  }, [state.currentUser, state.warmups, addWarmup, updateLocal]);
 
   const createDelivery = useCallback(async (
     name: string, totalBoxes: number, serverId: string, notes = ''
@@ -546,8 +724,8 @@ export function useDB() {
     // domains
     importDomains, updateDomain, deleteDomain,
     // warmup / rep
-    addWarmup, updateWarmup, deleteWarmup,
-    addReputation, updateReputation, deleteReputation,
+    addWarmup, updateWarmup, deleteWarmup, upsertWarmup,
+    addReputation, updateReputation, deleteReputation, upsertReputation, cleanupReputation,
     // deliveries
     createDelivery, updateDelivery, deleteDelivery,
     addDeliverySession, updateDeliverySession, deleteDeliverySession,
@@ -559,5 +737,6 @@ export function useDB() {
     initDefaultData,
     refreshData,
     logSending, getIPStats, getDeliveryHealth, markIpReady, markIpBurned,
+    createTestSeed, updateTestSeed, deleteTestSeed, createTestSeedItem, updateTestSeedItem, createTestSeedEvaluation, createPostmasterTask,
   };
 }

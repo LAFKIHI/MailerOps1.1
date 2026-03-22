@@ -15,13 +15,13 @@ export default function Settings() {
 
   const [actionSearch, setActionSearch] = useState('');
   const [addActionOpen, setAddActionOpen] = useState(false);
-  const [editAction,   setEditAction]    = useState<{ id?: string; code: string; label: string; special: boolean } | null>(null);
+  const [editAction, setEditAction] = useState<{ id?: string; code: string; label: string; special: boolean } | null>(null);
 
   const [addFolderOpen, setAddFolderOpen] = useState(false);
-  const [folderName,    setFolderName]    = useState('');
+  const [folderName, setFolderName] = useState('');
 
   const [addPresetOpen, setAddPresetOpen] = useState(false);
-  const [presetName,    setPresetName]    = useState('');
+  const [presetName, setPresetName] = useState('');
 
   const [saving, setSaving] = useState(false);
 
@@ -96,65 +96,82 @@ export default function Settings() {
   };
 
   return (
-    <div className="space-y-6">
-      <h1 className="font-['Syne',sans-serif] font-bold text-[#e2e8f0] text-base">Settings</h1>
+    <div className="space-y-6 md:space-y-8">
+      <div>
+        <h2 className="font-bold text-foreground text-2xl flex items-center gap-3">
+          ⚙️ Application Settings
+        </h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Manage actions, folders, presets and system utility tasks.
+        </p>
+      </div>
 
       {/* Bulk domains */}
-      <div className="bg-[#131619] border border-[#252b32] rounded-lg overflow-hidden">
-        <div className="flex items-center justify-between gap-4 px-4 py-4 flex-wrap">
-          <div>
-            <div className="text-sm font-medium text-[#e2e8f0]">Bulk Domain Upload</div>
-            <div className="text-xs text-[#5a6478] mt-0.5">Import many domains with IPs, then optionally sync Postmaster.</div>
+      <div className="kt-card p-6 border-dashed border-primary/30 bg-primary/5 hover:bg-primary/10 transition-colors cursor-pointer group"
+        onClick={() => navigate('/bulk-domains')}>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
+              📂
+            </div>
+            <div>
+              <div className="text-lg font-bold text-foreground">Bulk Domain Upload</div>
+              <div className="text-sm text-muted-foreground mt-0.5">Import large amounts of domains with IPs and sync Postmaster metrics.</div>
+            </div>
           </div>
           <button
-            onClick={() => navigate('/bulk-domains')}
-            className="text-sm font-mono font-bold px-4 py-2 rounded border border-[#252b32] text-[#4df0a0] hover:bg-[#0d2e1e] transition-all"
+            className="kt-btn kt-btn-primary px-6"
           >
-            Open
+            Launch Importer
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
         {/* ── Actions card ──────────────────────────────────── */}
-        <div className="lg:col-span-2 xl:col-span-2 bg-[#131619] border border-[#252b32] rounded-lg overflow-hidden">
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-[#252b32]">
-            <span className="font-['Syne',sans-serif] font-bold text-[#e2e8f0] text-sm flex-1">Actions</span>
-            <span className="text-[11px] text-[#5a6478] bg-[#1a1e22] border border-[#252b32] rounded-full px-2 py-0.5">{resolvedActions.length}</span>
+        <div className="lg:col-span-2 xl:col-span-2 kt-card overflow-hidden">
+          <div className="flex items-center gap-3 px-6 py-4 border-b border-border bg-muted/30">
+            <span className="font-bold text-foreground text-sm flex-1 uppercase tracking-widest">Custom Actions</span>
+            <span className="kt-badge kt-badge-info px-2 py-0.5 font-bold">{resolvedActions.length}</span>
             <button onClick={() => { setEditAction({ code: '', label: '', special: false }); setAddActionOpen(true); }}
-              className="text-[11px] font-mono px-3 py-1 rounded border border-[#252b32] text-[#4df0a0] hover:bg-[#0d2e1e] transition-all">
-              + New
+              className="kt-btn kt-btn-xs kt-btn-primary px-4">
+              + New Action
             </button>
           </div>
-          <div className="px-4 py-2 border-b border-[#252b32]">
-            <input value={actionSearch} onChange={e => setActionSearch(e.target.value)}
-              placeholder="Search actions…"
-              className="w-full bg-[#1a1e22] border border-[#252b32] rounded px-3 py-1.5 text-xs font-mono text-[#e2e8f0] outline-none focus:border-[#4df0a0] placeholder:text-[#5a6478]"
-            />
+          <div className="px-6 py-4 border-b border-border bg-muted/10">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">🔍</span>
+              <input value={actionSearch} onChange={e => setActionSearch(e.target.value)}
+                placeholder="Search actions by code or description…"
+                className="kt-input pl-10 w-full py-2 text-sm"
+              />
+            </div>
           </div>
-          <div className="max-h-72 overflow-y-auto">
+          <div className="max-h-96 overflow-y-auto">
             {filteredActions.length === 0 && (
-              <div className="text-center py-6 text-[#5a6478] text-xs font-mono">No results</div>
+              <div className="text-center py-12 text-muted-foreground text-xs font-bold uppercase tracking-widest">No matching actions found</div>
             )}
             {filteredActions.map(a => {
               const dbAction = actions.find(x => x.code === a.code);
               return (
-                <div key={a.code} className="flex items-center gap-3 px-4 py-2.5 border-b border-[#252b32] last:border-0 hover:bg-[#1a1e22] transition-colors group">
-                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded font-mono min-w-[32px] text-center
-                    ${a.special ? 'bg-[#2e1e0d] text-[#f09a4d]' : 'bg-[#0d2e1e] text-[#4df0a0]'}`}>
+                <div key={a.code} className="flex items-center gap-4 px-6 py-3 border-b border-border last:border-0 hover:bg-muted/30 transition-colors group">
+                  <span className={`text-[11px] font-bold px-3 py-1 rounded-lg font-mono min-w-[36px] text-center shadow-sm
+                    ${a.special ? 'bg-warning/10 text-warning border border-warning/20' : 'bg-success/10 text-success border border-success/20'}`}>
                     {a.code}
                   </span>
-                  <span className="flex-1 text-xs text-[#9aa5b4] truncate">
-                    {a.label}
-                    {a.special && <span className="ml-2 text-[#f09a4d]">★</span>}
-                  </span>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex-1 flex flex-col min-w-0">
+                    <span className="text-sm font-bold text-foreground truncate">{a.label}</span>
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
+                      {a.special ? 'Special Tracking enabled' : 'Standard outcome'}
+                    </span>
+                  </div>
+                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     {dbAction && (
                       <>
                         <button onClick={() => { setEditAction({ id: dbAction.id, code: dbAction.code, label: dbAction.label, special: dbAction.special }); setAddActionOpen(true); }}
-                          className="text-[10px] font-mono px-2 py-0.5 rounded border border-[#252b32] text-[#5a6478] hover:text-[#4df0a0] hover:border-[#4df0a0] transition-all">Edit</button>
+                          className="kt-btn kt-btn-xs kt-btn-outline px-3 transition-all hover:bg-primary/5 hover:text-primary border-border">Edit</button>
                         <button onClick={() => handleDeleteAction(dbAction.id, dbAction.code)}
-                          className="text-[10px] font-mono px-2 py-0.5 rounded border border-[#252b32] text-[#5a6478] hover:text-[#f04d4d] hover:border-[#f04d4d] transition-all">Del</button>
+                          className="kt-btn kt-btn-xs kt-btn-outline px-3 border-border text-destructive hover:bg-destructive/5 hover:text-destructive transition-all">Del</button>
                       </>
                     )}
                   </div>
@@ -193,26 +210,30 @@ export default function Settings() {
       </div>
 
       {/* Danger zone */}
-      <div className="border border-[#2e0d0d] rounded-lg overflow-hidden">
-        <div className="px-4 py-3 border-b border-[#2e0d0d] text-sm font-bold text-[#f04d4d]">⚠ Danger Zone</div>
-        <div className="divide-y divide-[#2e0d0d]">
+      <div className="kt-card border-destructive/20 overflow-hidden bg-destructive/5">
+        <div className="px-6 py-4 border-b border-destructive/20 bg-destructive/10">
+          <h3 className="text-sm font-bold text-destructive flex items-center gap-2 uppercase tracking-widest">
+            System Maintenance
+          </h3>
+        </div>
+        <div className="divide-y divide-destructive/10">
           <DangerRow
-            label="Load default data"
-            sub="Seed Firestore with 115 actions, default folders and delivery presets (only runs if empty)"
+            label="Restore Default Settings"
+            sub="Seed Firestore with 115 default actions, folders and delivery presets. Only adds missing items."
             btnLabel="Load Defaults"
-            btnClass="bg-[#1a1e22] border-[#252b32] text-[#9aa5b4] hover:border-[#4df0a0] hover:text-[#4df0a0]"
+            btnClass="kt-btn-outline border-destructive/20 text-destructive hover:bg-destructive/10"
             onClick={handleInitDefaults}
           />
           <DangerRow
-            label="Export all data"
-            sub="Download a JSON snapshot of all your tasks"
+            label="Database Snapshot Export"
+            sub="Download a full JSON backup of your current database state (Tasks, Actions, Folders, Presets)."
             btnLabel="Export JSON"
-            btnClass="bg-[#1a1e22] border-[#252b32] text-[#9aa5b4] hover:border-[#4df0a0] hover:text-[#4df0a0]"
+            btnClass="kt-btn-outline border-border hover:bg-muted"
             onClick={() => {
               const blob = new Blob([JSON.stringify({ tasks: ctx.tasks, actions: ctx.actions, folders: ctx.folders, deliveryPresets: ctx.deliveryPresets, servers: ctx.servers }, null, 2)], { type: 'application/json' });
               const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-              a.download = `mailerops-backup-${new Date().toISOString().slice(0,10)}.json`; a.click();
-              showToast('Exported ✓');
+              a.download = `mailerops-backup-${new Date().toISOString().slice(0, 10)}.json`; a.click();
+              showToast('System data exported ✓');
             }}
           />
         </div>
@@ -264,24 +285,24 @@ export default function Settings() {
 // ── Shared sub-components ─────────────────────────────────────────
 function SettingsCard({ title, count, onAdd, children }: { title: string; count: number; onAdd: () => void; children: React.ReactNode }) {
   return (
-    <div className="bg-[#131619] border border-[#252b32] rounded-lg overflow-hidden">
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-[#252b32]">
-        <span className="font-['Syne',sans-serif] font-bold text-[#e2e8f0] text-sm flex-1">{title}</span>
-        <span className="text-[11px] text-[#5a6478] bg-[#1a1e22] border border-[#252b32] rounded-full px-2 py-0.5">{count}</span>
-        <button onClick={onAdd} className="text-[11px] font-mono px-3 py-1 rounded border border-[#252b32] text-[#4df0a0] hover:bg-[#0d2e1e] transition-all">+ New</button>
+    <div className="kt-card overflow-hidden">
+      <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-muted/30">
+        <span className="font-bold text-foreground text-sm flex-1 uppercase tracking-widest">{title}</span>
+        <span className="kt-badge kt-badge-light px-2 py-0.5 font-bold">{count}</span>
+        <button onClick={onAdd} className="kt-btn kt-btn-xs kt-btn-primary px-3">+ New</button>
       </div>
-      <div className="max-h-48 overflow-y-auto">{children}</div>
+      <div className="max-h-72 overflow-y-auto">{children}</div>
     </div>
   );
 }
 
 function SettingsItem({ label, onDelete }: { label: string; onDelete: () => void }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-2.5 border-b border-[#252b32] last:border-0 hover:bg-[#1a1e22] transition-colors group">
-      <span className="w-1.5 h-1.5 rounded-full bg-[#4df0a0] shrink-0" />
-      <span className="flex-1 text-xs text-[#9aa5b4] font-mono">{label}</span>
+    <div className="flex items-center gap-3 px-5 py-3 border-b border-border last:border-0 hover:bg-muted/30 transition-colors group">
+      <div className="w-1.5 h-1.5 rounded-full bg-primary/40 shrink-0" />
+      <span className="flex-1 text-sm text-foreground font-medium">{label}</span>
       <button onClick={onDelete}
-        className="text-[10px] font-mono px-2 py-0.5 rounded border border-transparent text-[#5a6478] opacity-0 group-hover:opacity-100 hover:border-[#f04d4d] hover:text-[#f04d4d] transition-all">
+        className="kt-btn kt-btn-xs kt-btn-outline px-2 border-border text-destructive opacity-0 group-hover:opacity-100 hover:bg-destructive/5 transition-all">
         Del
       </button>
     </div>
@@ -289,17 +310,17 @@ function SettingsItem({ label, onDelete }: { label: string; onDelete: () => void
 }
 
 function EmptyMsg({ msg }: { msg: string }) {
-  return <div className="text-center py-5 text-[#5a6478] text-xs font-mono">{msg}</div>;
+  return <div className="text-center py-8 text-muted-foreground text-xs font-bold uppercase tracking-widest">{msg}</div>;
 }
 
 function DangerRow({ label, sub, btnLabel, btnClass, onClick }: { label: string; sub: string; btnLabel: string; btnClass: string; onClick: () => void }) {
   return (
-    <div className="flex items-center justify-between gap-4 px-4 py-4 flex-wrap">
-      <div>
-        <div className="text-sm font-medium text-[#e2e8f0]">{label}</div>
-        <div className="text-xs text-[#5a6478] mt-0.5">{sub}</div>
+    <div className="flex items-center justify-between gap-4 px-6 py-5 flex-wrap">
+      <div className="max-w-md">
+        <div className="text-sm font-bold text-foreground">{label}</div>
+        <div className="text-[11px] text-muted-foreground mt-1 font-medium leading-relaxed">{sub}</div>
       </div>
-      <button onClick={onClick} className={`text-sm font-mono font-bold px-4 py-2 rounded border transition-all ${btnClass}`}>
+      <button onClick={onClick} className={`kt-btn kt-btn-xs font-bold px-5 py-2.5 transition-all ${btnClass}`}>
         {btnLabel}
       </button>
     </div>

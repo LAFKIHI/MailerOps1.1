@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
@@ -20,7 +20,6 @@ if (fs.existsSync(envPath)) {
     }
   });
 }
-console.log('Loaded env:', env);
 
 const CLIENT_ID = env.VITE_GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = env.VITE_GOOGLE_CLIENT_SECRET;
@@ -68,7 +67,7 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: false, // Allow requests to localhost for dev API
+      webSecurity: true,
       preload: path.join(__dirname, 'preload.js'),
     },
   });
@@ -103,7 +102,11 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  // Keep the Electron shell clean without affecting the web build path.
+  Menu.setApplicationMenu(null);
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
@@ -115,10 +118,7 @@ app.on('activate', () => {
 
 // Handle OAuth code from auth window
 ipcMain.on('oauth-code', (event, code) => {
-  console.log('Received OAuth code:', code);
   exchangeCodeForToken(code).then(data => {
-    console.log('Token data:', data);
-    console.log('Sending token to renderer');
     if (mainWindow) {
       mainWindow.webContents.send('oauth-token', data);
     }
@@ -137,9 +137,7 @@ ipcMain.handle('start-oauth', async () => {
   currentCodeVerifier = generateCodeVerifier();
   const codeChallenge = await createCodeChallenge(currentCodeVerifier);
 
-  console.log('Starting OAuth with CLIENT_ID:', CLIENT_ID);
   const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${CLIENT_ID}&redirect_uri=http://localhost:3000/oauth/callback&scope=openid email https://www.googleapis.com/auth/postmaster.readonly&response_type=code&access_type=offline&code_challenge=${codeChallenge}&code_challenge_method=S256`;
-  console.log('Auth URL:', authUrl);
 
   const authWindow = new BrowserWindow({
     width: 600,

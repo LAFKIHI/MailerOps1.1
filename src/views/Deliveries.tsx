@@ -107,22 +107,25 @@ export default function Deliveries() {
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="font-['Syne',sans-serif] font-bold text-[#e2e8f0] text-base">Seed Deliveries</h1>
-          <p className="text-[#5a6478] text-xs font-mono mt-0.5">
+          <h1 className="text-xl font-bold text-foreground">Seed Deliveries</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">
             {deliveries.length} deliveries · {currentBoxesAll.toLocaleString()} active boxes
-            {inProgressCount > 0 && <span className="ml-2 text-[#f09a4d]">· {inProgressCount} in progress</span>}
+            {inProgressCount > 0 && <span className="ml-2 text-warning">· {inProgressCount} in progress</span>}
           </p>
         </div>
-        <div className="flex gap-2">
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search by name or RDP…"
-            className="text-xs font-mono bg-[#1a1e22] border border-[#252b32] rounded px-3 py-1.5 text-[#e2e8f0] outline-none focus:border-[#4df0a0] w-48 placeholder:text-[#5a6478]"
-          />
+        <div className="flex items-center gap-2">
+          <div className="kt-input max-w-xs">
+            <span className="text-muted-foreground mr-1">🔍</span>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by name or RDP…"
+              className="w-48 text-sm"
+            />
+          </div>
           <button
             onClick={() => setDrawerOpen(true)}
-            className="bg-[#4df0a0] text-black text-sm font-bold font-mono px-4 py-1.5 rounded hover:opacity-85 transition-opacity whitespace-nowrap"
+            className="kt-btn kt-btn-primary whitespace-nowrap"
           >
             + New Delivery
           </button>
@@ -131,22 +134,22 @@ export default function Deliveries() {
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Deliveries', val: deliveries.length, color: '#e2e8f0' },
-          { label: 'Active Boxes', val: currentBoxesAll.toLocaleString(), color: '#4df0a0' },
-          { label: 'Lost Total', val: lostAll.toLocaleString(), color: '#f04d4d' },
-          { label: 'Today Sessions', val: todaySessions, color: '#f09a4d' },
+          { label: 'Deliveries', val: deliveries.length, trendColor: 'text-foreground' },
+          { label: 'Active Boxes', val: currentBoxesAll.toLocaleString(), trendColor: 'text-success' },
+          { label: 'Lost Total', val: lostAll.toLocaleString(), trendColor: 'text-destructive' },
+          { label: 'Today Sessions', val: todaySessions, trendColor: 'text-warning' },
         ].map(item => (
-          <div key={item.label} className="bg-[#131619] border border-[#252b32] rounded-lg px-4 py-3">
-            <div className="text-[10px] uppercase tracking-widest text-[#5a6478] mb-1">{item.label}</div>
-            <div className="text-xl font-bold font-mono" style={{ color: item.color }}>{item.val}</div>
+          <div key={item.label} className="kt-card px-4 py-3">
+            <div className="text-xs uppercase tracking-widest text-muted-foreground mb-1">{item.label}</div>
+            <div className={`text-xl font-bold ${item.trendColor}`}>{item.val}</div>
           </div>
         ))}
       </div>
 
       {filtered.length === 0 ? (
-        <div className="border border-dashed border-[#252b32] rounded-lg p-12 text-center">
+        <div className="kt-card border-dashed p-12 text-center">
           <div className="text-3xl mb-3">📬</div>
-          <p className="text-[#5a6478] text-sm font-mono">
+          <p className="text-muted-foreground text-sm">
             {search ? 'No deliveries match your search.' : 'No deliveries yet. Click "+ New Delivery" to start.'}
           </p>
         </div>
@@ -164,31 +167,31 @@ export default function Deliveries() {
                 <div className="flex items-center gap-3 flex-wrap">
                   <button
                     onClick={() => toggleGroup(rdp)}
-                    className="text-[11px] font-bold font-mono bg-[#1a1e22] text-[#9aa5b4] border border-[#252b32] px-2 py-1 rounded hover:border-[#4d8ff0] hover:text-[#4d8ff0] transition-all"
+                    className="kt-btn kt-btn-outline px-2 py-1 text-xs"
                   >
                     {isCollapsed ? '+' : '−'}
                   </button>
                   <button
                     onClick={() => navigate(`/deliveries/rdp/${encodeURIComponent(rdp)}`)}
-                    className="flex items-center gap-2 hover:opacity-90 transition-opacity"
+                    className="flex items-center gap-2 hover:opacity-80 transition-opacity"
                   >
-                    <span className="text-[11px] font-bold font-mono bg-[#0d1e3e] text-[#4d8ff0] border border-[#1a3a6e] px-3 py-1 rounded-full">
+                    <span className="text-xs font-bold bg-primary/10 text-primary px-3 py-1 rounded-full">
                       {rdp === 'No RDP' ? 'No RDP' : `RDP ${rdp}`}
                     </span>
-                    <span className="text-[11px] text-[#5a6478] font-mono">
+                    <span className="text-xs text-muted-foreground">
                       {rdpDeliveries.length} deliver{rdpDeliveries.length !== 1 ? 'ies' : 'y'} · View summary
                     </span>
                   </button>
-                  <div className="flex-1 h-px bg-[#252b32]" />
-                  <div className="flex gap-3 text-[11px] font-mono shrink-0">
-                    <span className="text-[#4df0a0]">{rdpActive.toLocaleString()} active</span>
-                    <span className="text-[#f04d4d]">{rdpLost.toLocaleString()} lost</span>
-                    <span className="text-[#5a6478]">{rdpSurv}% survival</span>
+                  <div className="flex-1 h-px bg-border" />
+                  <div className="flex gap-3 text-xs shrink-0 font-medium">
+                    <span className="text-success">{rdpActive.toLocaleString()} active</span>
+                    <span className="text-destructive">{rdpLost.toLocaleString()} lost</span>
+                    <span className="text-muted-foreground">{rdpSurv}% survival</span>
                   </div>
                 </div>
 
                 {!isCollapsed && (
-                  <div className="space-y-2 pl-2 border-l-2 border-[#0d1e3e]">
+                  <div className="space-y-2 pl-2 border-l-2 border-primary/20">
                     {rdpDeliveries.map(delivery => {
                       const last = latestSession(delivery.id);
                       const sessionTotal = sessionCount(delivery.id);
@@ -201,60 +204,60 @@ export default function Deliveries() {
                         <div
                           key={delivery.id}
                           onClick={() => navigate(`/deliveries/${delivery.id}`)}
-                          className="bg-[#131619] border border-[#252b32] rounded-lg p-4 cursor-pointer hover:border-[#4df0a0]/50 hover:bg-[#0d0f11] transition-all group"
+                          className="kt-card p-4 cursor-pointer hover:border-primary/50 hover:bg-accent transition-all group"
                         >
                           <div className="flex items-start justify-between gap-4 flex-wrap">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap mb-2">
-                                <span className="font-['Syne',sans-serif] font-bold text-[#e2e8f0] text-sm">{delivery.name}</span>
-                                <span className="text-[10px] bg-[#0d1e3e] text-[#4d8ff0] border border-[#1a3a6e] px-2 py-0.5 rounded font-mono">
+                                <span className="font-bold text-foreground text-sm">{delivery.name}</span>
+                                <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
                                   {delivery.serverId ? `RDP ${delivery.serverId}` : 'No RDP'}
                                 </span>
-                                <span className="text-[10px] text-[#5a6478] font-mono">
+                                <span className="text-xs text-muted-foreground">
                                   {sessionTotal} session{sessionTotal !== 1 ? 's' : ''}
                                 </span>
                                 {hasInProgress && (
-                                  <span className="text-[10px] bg-[#2e1e0d] text-[#f09a4d] border border-[#f09a4d]/30 px-2 py-0.5 rounded font-mono animate-pulse">
+                                  <span className="text-xs bg-warning/10 text-warning border border-warning/30 px-2 py-0.5 rounded animate-pulse">
                                     ⏳ In Progress
                                   </span>
                                 )}
                               </div>
 
-                              <div className="flex h-1.5 rounded-full overflow-hidden bg-[#252b32] gap-px mb-1.5">
-                                <div className="bg-[#4df0a0]" style={{ width: `${survPct}%` }} />
-                                <div className="bg-[#f04d4d]" style={{ width: `${100 - survPct}%` }} />
+                              <div className="flex h-1.5 rounded-full overflow-hidden bg-border gap-px mb-1.5">
+                                <div className="bg-success" style={{ width: `${survPct}%` }} />
+                                <div className="bg-destructive" style={{ width: `${100 - survPct}%` }} />
                               </div>
 
-                              <div className="flex gap-4 text-[11px] font-mono">
-                                <span className="text-[#4df0a0]">✓ {delivery.currentBoxes.toLocaleString()}</span>
-                                <span className="text-[#f04d4d]">✕ {lost.toLocaleString()} lost</span>
-                                <span className="text-[#5a6478]">/ {delivery.totalBoxes.toLocaleString()}</span>
-                                <span className="text-[#5a6478]">{survPct}%</span>
+                              <div className="flex gap-4 text-xs">
+                                <span className="text-success">✓ {delivery.currentBoxes.toLocaleString()}</span>
+                                <span className="text-destructive">✕ {lost.toLocaleString()} lost</span>
+                                <span className="text-muted-foreground">/ {delivery.totalBoxes.toLocaleString()}</span>
+                                <span className="text-muted-foreground">{survPct}%</span>
                               </div>
                             </div>
 
                             <div className="flex items-center gap-3 shrink-0">
                               {last ? (
                                 <div className="text-right">
-                                  <div className="text-[10px] text-[#5a6478] font-mono mb-1">{last.date}</div>
+                                  <div className="text-xs text-muted-foreground mb-1">{last.date}</div>
                                   {done ? (
-                                    <div className="flex gap-1.5 justify-end font-mono text-[11px]">
-                                      {last.succeeded > 0 && <span className="text-[#4df0a0]">✓{last.succeeded}</span>}
-                                      {last.badProxy > 0 && <span className="text-[#f09a4d]">⟳{last.badProxy}</span>}
-                                      {last.deleted > 0 && <span className="text-[#f04d4d]">✕{last.deleted}</span>}
-                                      {last.untouched > 0 && <span className="text-[#5a6478]">…{last.untouched}</span>}
+                                    <div className="flex gap-1.5 justify-end text-xs font-medium">
+                                      {last.succeeded > 0 && <span className="text-success">✓{last.succeeded}</span>}
+                                      {last.badProxy > 0 && <span className="text-warning">⟳{last.badProxy}</span>}
+                                      {last.deleted > 0 && <span className="text-destructive">✕{last.deleted}</span>}
+                                      {last.untouched > 0 && <span className="text-muted-foreground">…{last.untouched}</span>}
                                     </div>
                                   ) : (
-                                    <span className="text-[10px] text-[#f09a4d] font-mono">running…</span>
+                                    <span className="text-xs text-warning">running…</span>
                                   )}
                                 </div>
                               ) : (
-                                <span className="text-[10px] text-[#5a6478] font-mono">no sessions</span>
+                                <span className="text-xs text-muted-foreground">no sessions</span>
                               )}
 
                               <button
                                 onClick={e => handleDelete(delivery, e)}
-                                className="opacity-0 group-hover:opacity-100 text-[11px] font-mono px-2 py-1 rounded border border-transparent text-[#5a6478] hover:border-[#f04d4d] hover:text-[#f04d4d] transition-all"
+                                className="opacity-0 group-hover:opacity-100 text-xs px-2 py-1 kt-btn text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
                               >
                                 Del
                               </button>
@@ -278,20 +281,26 @@ export default function Deliveries() {
         subtitle="Create a new seed delivery to start tracking"
       >
         <DField label="Delivery Name" required>
-          <DInput value={name} onChange={e => setName(e.target.value)} placeholder="e.g. nv-sd07-03" autoFocus />
+          <div className="kt-input w-full">
+            <DInput value={name} onChange={e => setName(e.target.value)} placeholder="e.g. nv-sd07-03" autoFocus />
+          </div>
         </DField>
 
         <DField label="Total Mailboxes" required>
-          <DInput type="number" value={total} onChange={e => setTotal(e.target.value)} placeholder="e.g. 500" min="1" />
-          <p className="text-[10px] text-[#5a6478] font-mono mt-1">The number of boxes on day 1. This is your starting point.</p>
+          <div className="kt-input w-full">
+            <DInput type="number" value={total} onChange={e => setTotal(e.target.value)} placeholder="e.g. 500" min="1" />
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">The number of boxes on day 1. This is your starting point.</p>
         </DField>
 
         <DField label="RDP ID">
-          <DInput value={rdpId} onChange={e => setRdpId(e.target.value)} list="rdpList" placeholder="e.g. 178" />
+          <div className="kt-input w-full">
+            <DInput value={rdpId} onChange={e => setRdpId(e.target.value)} list="rdpList" placeholder="e.g. 178" />
+          </div>
           <datalist id="rdpList">
             {knownRDPs.map(rdp => <option key={rdp} value={rdp} />)}
           </datalist>
-          <p className="text-[10px] text-[#5a6478] font-mono mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             The RDP machine running this delivery, for example `178`
           </p>
         </DField>
@@ -302,10 +311,10 @@ export default function Deliveries() {
               <button
                 key={rdp}
                 onClick={() => setRdpId(rdp)}
-                className={`text-[11px] font-mono px-2.5 py-1 rounded border transition-all ${
+                className={`text-xs px-2.5 py-1 rounded border transition-all ${
                   rdpId === rdp
-                    ? 'bg-[#0d1e3e] border-[#4d8ff0] text-[#4d8ff0]'
-                    : 'bg-[#1a1e22] border-[#252b32] text-[#5a6478] hover:border-[#4d8ff0] hover:text-[#4d8ff0]'
+                    ? 'bg-primary/10 border-primary text-primary'
+                    : 'bg-accent border-border text-muted-foreground hover:border-primary hover:text-primary'
                 }`}
               >
                 RDP {rdp}
@@ -315,22 +324,24 @@ export default function Deliveries() {
         )}
 
         <DField label="Notes (optional)">
-          <DInput value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. Provider X accounts, batch C…" />
+          <div className="kt-input w-full">
+            <DInput value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. Provider X accounts, batch C…" />
+          </div>
         </DField>
 
         {name && total && (
-          <div className="mt-2 mb-4 bg-[#0d0f11] border border-[#252b32] rounded-lg p-3">
-            <div className="text-[10px] uppercase tracking-widest text-[#5a6478] mb-2">Preview</div>
+          <div className="mt-2 mb-4 kt-card bg-accent/30 p-4">
+            <div className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Preview</div>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-bold text-[#e2e8f0] font-mono text-sm">{name}</span>
+              <span className="font-bold text-foreground text-sm">{name}</span>
               {rdpId && (
-                <span className="text-[10px] bg-[#0d1e3e] text-[#4d8ff0] border border-[#1a3a6e] px-2 py-0.5 rounded font-mono">
+                <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
                   RDP {rdpId}
                 </span>
               )}
             </div>
-            <div className="mt-2 text-[11px] font-mono text-[#5a6478]">
-              Starting with <span className="text-[#4df0a0]">{Number(total).toLocaleString()}</span> mailboxes
+            <div className="mt-2 text-xs text-muted-foreground">
+              Starting with <span className="text-success">{Number(total).toLocaleString()}</span> mailboxes
             </div>
           </div>
         )}

@@ -34,83 +34,88 @@ export default function JSONUploadModal({
   if (!open) return null;
 
   return (
-    <Modal title="Upload JSON (optional)" onClose={onClose} size="lg">
-      <div className="space-y-6">
-        <section className="space-y-3 rounded-2xl border border-[#252b32] bg-[#11151c] p-4">
-          <div>
-            <div className="font-['Syne',sans-serif] text-sm font-bold text-[#e2e8f0]">Google OAuth client JSON</div>
-            <p className="mt-1 text-[11px] font-mono text-[#738096]">
-              Optional fallback when `VITE_GOOGLE_CLIENT_ID` is not already enough for the Gmail/Postmaster auth flow.
-            </p>
-          </div>
+    <Modal title="Advanced Protocol Configuration" onClose={onClose} size="lg">
+      <div className="space-y-8 p-1">
+        <section className="space-y-6 bg-muted/20 border border-border/50 rounded-[2rem] p-8 shadow-sm">
+          <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+            <div className="space-y-1">
+              <h4 className="text-sm font-black text-foreground uppercase tracking-widest">Google OAuth Handshake</h4>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">
+                Identity Layer Fallback Initialization
+              </p>
+            </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => clientFileRef.current?.click()}
-              className="rounded-md border border-[#252b32] bg-[#1a1e22] px-3 py-2 text-sm font-mono text-[#9aa5b4] transition-all hover:border-[#4d8ff0] hover:text-[#4d8ff0]"
-            >
-              Choose Google JSON
-            </button>
-            <input
-              ref={clientFileRef}
-              type="file"
-              accept=".json,application/json"
-              className="hidden"
-              onChange={async event => {
-                const file = event.target.files?.[0];
-                if (file) await onClientJsonFileSelect(file);
-                event.target.value = '';
-              }}
-            />
             {savedProjectId && (
-              <span className="text-[10px] font-mono text-[#7d8aa0]">
-                Project: <span className="text-[#d4dbe6]">{savedProjectId}</span>
-              </span>
+              <div className="px-3 py-1.5 rounded-xl bg-info/10 border border-info/20 text-[10px] font-black uppercase text-info tracking-widest">
+                Linked Project: {savedProjectId}
+              </div>
             )}
           </div>
 
-          <textarea
-            value={clientJsonInput}
-            onChange={event => onClientJsonInputChange(event.target.value)}
-            rows={8}
-            placeholder="Paste or upload the Google OAuth client JSON here"
-            className="w-full rounded-md border border-[#252b32] bg-[#0d0f11] px-3 py-2 text-xs font-mono text-[#e2e8f0] outline-none transition-colors focus:border-[#4d8ff0] placeholder:text-[#5a6478]"
-          />
+          <div className="space-y-4">
+            <div className="flex justify-start">
+              <button
+                onClick={() => clientFileRef.current?.click()}
+                className="kt-btn kt-btn-light h-10 px-6 rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all"
+              >
+                Ingest Google JSON file
+              </button>
+              <input
+                ref={clientFileRef}
+                type="file"
+                accept=".json,application/json"
+                className="hidden"
+                onChange={async event => {
+                  const file = event.target.files?.[0];
+                  if (file) await onClientJsonFileSelect(file);
+                  event.target.value = '';
+                }}
+              />
+            </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+            <textarea
+              value={clientJsonInput}
+              onChange={event => onClientJsonInputChange(event.target.value)}
+              rows={6}
+              placeholder="Paste the raw OAuth payload here..."
+              className="w-full bg-background border border-border/50 rounded-2xl p-5 text-xs font-mono text-foreground placeholder:text-muted-foreground/30 focus:ring-4 focus:ring-primary/5 focus:border-primary/50 transition-all resize-none shadow-inner"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 pt-2">
             <button
               onClick={() => void onSaveClientJson()}
               disabled={savingClientJson || !clientJsonInput.trim()}
-              className="rounded-md bg-[#4d8ff0] px-4 py-2 text-sm font-bold font-mono text-white transition-opacity hover:opacity-85 disabled:opacity-40"
+              className="kt-btn kt-btn-primary h-12 px-8 rounded-xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-primary/20 disabled:opacity-40"
             >
-              {savingClientJson ? 'Saving...' : 'Save Google JSON'}
+              {savingClientJson ? 'Committing...' : 'Commit Protocol JSON'}
             </button>
             {hasSavedClientJson && (
               <button
                 onClick={() => void onRemoveClientJson()}
-                className="rounded-md border border-[#252b32] bg-[#1a1e22] px-3 py-2 text-sm font-mono text-[#9aa5b4] transition-all hover:border-[#f04d4d] hover:text-[#f04d4d]"
+                className="kt-btn kt-btn-light h-12 px-6 rounded-xl font-black text-[10px] uppercase tracking-widest text-destructive hover:bg-destructive/10 hover:text-destructive transition-all"
               >
-                Remove Saved JSON
+                Destroy Stored Identity
               </button>
             )}
           </div>
         </section>
 
-        <section className="space-y-3 rounded-2xl border border-[#252b32] bg-[#11151c] p-4">
-          <div>
-            <div className="font-['Syne',sans-serif] text-sm font-bold text-[#e2e8f0]">Fallback Postmaster raw JSON</div>
-            <p className="mt-1 text-[11px] font-mono text-[#738096]">
-              Optional import for manually exported Postmaster data. The file is read in memory, then posted to the backend API.
+        <section className="bg-muted/10 border border-border/30 rounded-[2rem] p-8 space-y-6">
+          <div className="space-y-1">
+            <h4 className="text-sm font-black text-foreground uppercase tracking-widest opacity-80">Manual Postmaster Dump</h4>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-50">
+              Raw Data Injection Port (Volatile)
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-4">
             <button
               onClick={() => rawFileRef.current?.click()}
               disabled={rawJsonUploading}
-              className="rounded-md border border-[#252b32] bg-[#1a1e22] px-3 py-2 text-sm font-mono text-[#9aa5b4] transition-all hover:border-[#4df0a0] hover:text-[#4df0a0] disabled:opacity-40"
+              className="kt-btn kt-btn-light h-12 px-8 rounded-2xl font-black text-xs uppercase tracking-[0.2em] border-border/50 hover:bg-primary/5 hover:text-primary hover:border-primary/30 transition-all disabled:opacity-40"
             >
-              {rawJsonUploading ? 'Uploading...' : 'Upload raw JSON'}
+              {rawJsonUploading ? 'Streaming...' : 'Inject Raw JSON payload'}
             </button>
             <input
               ref={rawFileRef}

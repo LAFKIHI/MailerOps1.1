@@ -25,12 +25,16 @@ export default function ActionMenu({ actions }: { actions: ActionItem[] }) {
     <div className="relative inline-block text-left" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
-        className="text-[#9aa5b4] hover:text-[#e2e8f0] px-2 py-1 rounded transition-colors text-lg leading-none"
+        className="w-8 h-8 flex items-center justify-center rounded-xl text-muted-foreground hover:text-primary hover:bg-primary/5 border border-transparent hover:border-primary/20 transition-all active:scale-90"
       >
-        ⋮
+        <div className="flex gap-0.5">
+          <span className="w-1 h-1 rounded-full bg-current" />
+          <span className="w-1 h-1 rounded-full bg-current" />
+          <span className="w-1 h-1 rounded-full bg-current" />
+        </div>
       </button>
       {open && (
-        <div className="absolute right-0 z-50 mt-1 w-32 rounded-md bg-[#1a1e22] shadow-lg border border-[#252b32] py-1">
+        <div className="absolute right-0 z-50 mt-2 w-48 rounded-2xl bg-background/90 backdrop-blur-xl shadow-2xl shadow-black/20 border border-border/50 py-2 animate-in fade-in zoom-in-95 duration-200">
           {actions.map((action, i) => (
             <button
               key={i}
@@ -40,12 +44,12 @@ export default function ActionMenu({ actions }: { actions: ActionItem[] }) {
                 setOpen(false);
                 action.onClick();
               }}
-              className={`w-full text-left px-4 py-2 text-xs font-mono transition-colors hover:bg-[#252b32] ${
-                action.danger ? 'text-[#f04d4d]' : 'text-[#e2e8f0]'
+              className={`w-full text-left px-5 py-2.5 text-xs font-bold transition-all flex items-center gap-3 hover:bg-primary/5 group ${
+                action.danger ? 'text-destructive hover:text-destructive' : 'text-foreground hover:text-primary'
               }`}
             >
-              {action.icon && <span className="mr-2">{action.icon}</span>}
-              {action.label}
+              {action.icon && <span className="text-sm opacity-60 group-hover:opacity-100 transition-opacity">{action.icon}</span>}
+              <span className="flex-1">{action.label}</span>
             </button>
           ))}
         </div>

@@ -5,57 +5,40 @@ import PostmasterConnect, {
   usePostmaster,
 } from '../components/PostmasterConnect';
 import { domainHealthScore, healthColor, healthLabel } from '../lib/types';
+import Badge from '../components/Badge';
+import StatCard, { Color } from '../components/StatCard';
 
-// ── Rep badge ─────────────────────────────────────────────────────
-const REP_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  HIGH:   { bg: '#0d2e1e', text: '#4df0a0', border: '#1f5c3e' },
-  MEDIUM: { bg: '#0d1e3e', text: '#4d8ff0', border: '#1a3a6e' },
-  LOW:    { bg: '#2e1e0d', text: '#f09a4d', border: '#5c3a1a' },
-  BAD:    { bg: '#2e0d0d', text: '#f04d4d', border: '#5c1a1a' },
-};
-
-function RepBadge({ val }: { val?: string }) {
-  if (!val || val === 'N/A' || val === '—' || val === '') {
-    return <span className="text-[#3a4252] font-mono text-xs">—</span>;
-  }
-  const c = REP_COLORS[val] ?? { bg: '#1a1e22', text: '#9aa5b4', border: '#252b32' };
-  return (
-    <span
-      className="inline-block text-[10px] font-bold font-mono px-2 py-0.5 rounded"
-      style={{ background: c.bg, color: c.text, border: `1px solid ${c.border}` }}
-    >
-      {val}
-    </span>
-  );
-}
-
+// ── Shared Helpers ────────────────────────────────────────────────
 function SpamBadge({ rate }: { rate?: string }) {
-  const raw = parseFloat((rate ?? '0').replace('%', ''));
+  if (!rate || rate.trim().length === 0) {
+    return <span className="font-mono text-xs text-muted-foreground">—</span>;
+  }
+  const raw = parseFloat(rate.replace('%', ''));
   const color = isNaN(raw) || raw === 0
-    ? '#4df0a0'
-    : raw < 0.1 ? '#4df0a0'
-    : raw < 0.3 ? '#f09a4d'
-    : '#f04d4d';
+    ? 'var(--success)'
+    : raw < 0.1 ? 'var(--success)'
+      : raw < 0.3 ? 'var(--warning)'
+        : 'var(--destructive)';
   return (
-    <span className="font-mono text-xs" style={{ color }}>
-      {isNaN(raw) ? '0.0000%' : raw.toFixed(4) + '%'}
+    <span className="font-mono text-xs font-bold" style={{ color }}>
+      {(isNaN(raw) || raw === null || raw === undefined) ? '—' : raw.toFixed(4) + '%'}
     </span>
   );
 }
 
 function HealthRing({ score }: { score: number }) {
   const c = healthColor(score);
-  const circ = 81.7;
   return (
-    <div className="relative w-8 h-8 shrink-0">
-      <svg viewBox="0 0 32 32" className="w-8 h-8 -rotate-90">
-        <circle cx="16" cy="16" r="13" fill="none" stroke="#252b32" strokeWidth="3" />
-        <circle cx="16" cy="16" r="13" fill="none" stroke={c} strokeWidth="3"
-          strokeDasharray={`${(score / 100) * circ} ${circ}`}
+    <div className="relative w-10 h-10">
+      <svg viewBox="0 0 32 32" className="w-10 h-10 -rotate-90">
+        <circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" className="text-border" strokeWidth="3" />
+        <circle cx="16" cy="16" r="14" fill="none" stroke={c} strokeWidth="3"
+          strokeDasharray={`${(score / 100) * 87.9} 87.9`}
           strokeLinecap="round" />
       </svg>
-      <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold font-mono"
-        style={{ color: c }}>{score}</span>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-[10px] font-bold font-mono leading-none" style={{ color: c }}>{score}</span>
+      </div>
     </div>
   );
 }
@@ -71,18 +54,21 @@ export default function Postmaster() {
   const { domains, servers, reputation } = ctx;
   const { token: pmToken, connected: pmConnected } = usePostmaster(ctx.currentUser?.uid);
 
-  const [search,    setSearch]    = useState('');
+  const [search, setSearch] = useState('');
   const [serverFilter, setServerFilter] = useState('');
   const [repFilter, setRepFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [sort,      setSort]      = useState<SortKey>('health');
-  const [sortDir,   setSortDir]   = useState<SortDir>('desc');
-  const [fetching,  setFetching]  = useState(false);
+  const [sort, setSort] = useState<SortKey>('health');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [dateRange, setDateRange] = useState(30);
+  const [fetching, setFetching] = useState(false);
   const [fetchProgress, setFetchProgress] = useState({ done: 0, total: 0 });
   const fetchedRef = useRef(false);
 
   const latestRep = (domainId: string) => {
-    const recs = reputation.filter(r => r.domainId === domainId);
+    const recs = reputation.filter(
+      r => r.domainId === domainId && typeof r.date === 'string' && r.date.length > 0
+    );
     return recs.sort((a, b) => b.date.localeCompare(a.date))[0] ?? null;
   };
 
@@ -92,8 +78,8 @@ export default function Postmaster() {
       .filter(d => !d.archived)
       .map(d => {
         const server = servers.find(s => s.id === d.serverId);
-        const rep    = latestRep(d.id);
-        const score  = domainHealthScore(d, rep);
+        const rep = latestRep(d.id);
+        const score = domainHealthScore(d, rep);
         return { ...d, serverName: server?.name ?? '—', score };
       }),
     [domains, servers, reputation]
@@ -106,9 +92,9 @@ export default function Postmaster() {
 
   // ── Summary stats ──────────────────────────────────────────────
   const stats = useMemo(() => ({
-    total:   allDomains.length,
-    inbox:   allDomains.filter(d => d.status === 'inbox').length,
-    spam:    allDomains.filter(d => d.status === 'spam').length,
+    total: allDomains.length,
+    inbox: allDomains.filter(d => d.status === 'inbox').length,
+    spam: allDomains.filter(d => d.status === 'spam').length,
     blocked: allDomains.filter(d => d.status === 'blocked').length,
     highRep: allDomains.filter(d => d.domainRep === 'HIGH').length,
     avgScore: allDomains.length
@@ -119,20 +105,20 @@ export default function Postmaster() {
   // ── Filter + sort ──────────────────────────────────────────────
   const filtered = useMemo(() => {
     let list = allDomains;
-    if (search)       list = list.filter(d => d.domain.toLowerCase().includes(search.toLowerCase()));
+    if (search) list = list.filter(d => d.domain.toLowerCase().includes(search.toLowerCase()));
     if (serverFilter) list = list.filter(d => d.serverName === serverFilter);
-    if (repFilter)    list = list.filter(d => d.domainRep === repFilter);
+    if (repFilter) list = list.filter(d => d.domainRep === repFilter);
     if (statusFilter) list = list.filter(d => d.status === statusFilter);
 
     list = [...list].sort((a, b) => {
       let cmp = 0;
-      if (sort === 'domain')    cmp = a.domain.localeCompare(b.domain);
+      if (sort === 'domain') cmp = a.domain.localeCompare(b.domain);
       else if (sort === 'server') cmp = a.serverName.localeCompare(b.serverName);
       else if (sort === 'health') cmp = a.score - b.score;
       else if (sort === 'domainRep') cmp = (REP_RANK[a.domainRep ?? ''] ?? 0) - (REP_RANK[b.domainRep ?? ''] ?? 0);
-      else if (sort === 'ipRep')     cmp = (REP_RANK[a.ipRep ?? '']     ?? 0) - (REP_RANK[b.ipRep ?? '']     ?? 0);
-      else if (sort === 'spamRate')  cmp = parseFloat(a.spamRate ?? '0') - parseFloat(b.spamRate ?? '0');
-      else if (sort === 'status')    cmp = a.status.localeCompare(b.status);
+      else if (sort === 'ipRep') cmp = (REP_RANK[a.ipRep ?? ''] ?? 0) - (REP_RANK[b.ipRep ?? ''] ?? 0);
+      else if (sort === 'spamRate') cmp = parseFloat(a.spamRate ?? '0') - parseFloat(b.spamRate ?? '0');
+      else if (sort === 'status') cmp = a.status.localeCompare(b.status);
       return sortDir === 'asc' ? cmp : -cmp;
     });
     return list;
@@ -146,12 +132,14 @@ export default function Postmaster() {
   const SortTh = ({ col, label }: { col: SortKey; label: string }) => (
     <th
       onClick={() => toggleSort(col)}
-      className="text-left px-3 py-3 text-[10px] uppercase tracking-widest text-[#5a6478] font-medium whitespace-nowrap cursor-pointer hover:text-[#9aa5b4] select-none"
+      className="text-left px-5 py-4 text-xs uppercase tracking-widest text-muted-foreground font-medium whitespace-nowrap cursor-pointer hover:text-foreground transition-colors select-none group"
     >
-      {label}
-      {sort === col && (
-        <span className="ml-1 text-[#4df0a0]">{sortDir === 'desc' ? '↓' : '↑'}</span>
-      )}
+      <div className="flex items-center gap-1">
+        {label}
+        <span className={`transition-opacity ${sort === col ? 'opacity-100 text-primary' : 'opacity-0 group-hover:opacity-50'}`}>
+          {sortDir === 'desc' ? '↓' : '↑'}
+        </span>
+      </div>
     </th>
   );
 
@@ -178,15 +166,15 @@ export default function Postmaster() {
       await Promise.allSettled(
         batch.map(async (d) => {
           try {
-            const { stats, error } = await fetchDomainStats(pmToken, d.domain);
+            const { stats, error } = await fetchDomainStats(pmToken, d.domain, dateRange);
             if (!error && stats.length > 0) {
-              const domRep   = latestVal(stats, 'domainRep');
-              const ipRep    = latestVal(stats, 'ipRep');
-              const latest   = stats[stats.length - 1];
+              const domRep = latestVal(stats, 'domainRep');
+              const ipRep = latestVal(stats, 'ipRep');
+              const latest = stats[stats.length - 1];
               const spamRate = latest?.spamRate != null ? latest.spamRate.toFixed(4) + '%' : null;
               await ctx.updateDomain(d.id, {
                 domainRep: domRep ?? '',
-                ipRep:     ipRep  ?? '',
+                ipRep: ipRep ?? '',
                 ...(spamRate && { spamRate }),
               });
             }
@@ -214,30 +202,44 @@ export default function Postmaster() {
   const pct = (n: number) => allDomains.length ? Math.round((n / allDomains.length) * 100) : 0;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6 md:space-y-8">
 
       {/* ── Header ───────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <h2 className="font-bold text-[#e2e8f0] text-base flex items-center gap-2">
-          <span className="text-[#4d8ff0]">📡</span> Postmaster Overview
-        </h2>
-        <span className="text-[10px] font-mono text-[#5a6478] bg-[#131619] border border-[#252b32] px-2 py-0.5 rounded">
-          {allDomains.length} domains across {servers.length} servers
-        </span>
-        <div className="ml-auto flex items-center gap-2">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="font-bold text-foreground text-2xl flex items-center gap-3">
+            <span className="text-primary">📡</span> Postmaster Overview
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Live insights from <a href="https://postmaster.google.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Google Postmaster</a> for {allDomains.length} domains.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
           {fetching ? (
-            <span className="text-[10px] font-mono text-[#4d8ff0] animate-pulse flex items-center gap-1">
-              <span className="animate-spin inline-block">⟳</span>
-              {fetchProgress.done}/{fetchProgress.total} domains…
-            </span>
+            <div className="kt-badge kt-badge-info animate-pulse px-4 py-2">
+              <span className="animate-spin inline-block mr-2">⟳</span>
+              Syncing {fetchProgress.done}/{fetchProgress.total}…
+            </div>
           ) : (
             pmConnected && (
-              <button
-                onClick={handleRefreshAll}
-                className="text-[11px] font-mono px-3 py-1.5 rounded border border-[#1a3a6e] text-[#4d8ff0] hover:border-[#4d8ff0] hover:bg-[#0d1e3e] transition-all"
-              >
-                ⟳ Refresh All
-              </button>
+              <div className="flex items-center gap-3">
+                <select
+                  value={dateRange}
+                  onChange={(e) => setDateRange(Number(e.target.value))}
+                  className="kt-input px-3 py-2 text-xs font-bold uppercase tracking-widest cursor-pointer"
+                >
+                  <option value={7}>7 Days</option>
+                  <option value={30}>30 Days</option>
+                  <option value={60}>60 Days</option>
+                  <option value={90}>90 Days</option>
+                </select>
+                <button
+                  onClick={handleRefreshAll}
+                  className="kt-btn kt-btn-primary px-5"
+                >
+                  ⟳ Refresh All
+                </button>
+              </div>
             )
           )}
         </div>
@@ -247,145 +249,148 @@ export default function Postmaster() {
       <PostmasterConnect />
 
       {/* ── Summary cards ────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 xl:gap-6">
         {[
-          { label: 'Total',      val: stats.total,   color: '#e2e8f0' },
-          { label: 'Inbox',      val: stats.inbox,   color: '#4df0a0' },
-          { label: 'Spam',       val: stats.spam,    color: '#f09a4d' },
-          { label: 'Blocked',    val: stats.blocked, color: '#f04d4d' },
-          { label: 'HIGH Rep',   val: stats.highRep, color: '#4df0a0' },
-          { label: 'Avg Health', val: stats.avgScore, color: healthColor(stats.avgScore) },
+          { label: 'Total', val: stats.total, sub: 'Active domains', color: '' as Color },
+          { label: 'Inbox', val: stats.inbox, sub: 'Monitoring status', color: '' as Color },
+          { label: 'Spam', val: stats.spam, sub: 'Warning status', color: 'orange' as Color },
+          { label: 'Blocked', val: stats.blocked, sub: 'Critical status', color: 'red' as Color },
+          { label: 'HIGH Rep', val: stats.highRep, sub: 'Domain Reputation', color: 'blue' as Color },
+          { label: 'Avg Health', val: stats.avgScore, sub: healthLabel(stats.avgScore), color: (stats.avgScore > 70 ? '' : stats.avgScore > 40 ? 'orange' : 'red') as Color },
         ].map(s => (
-          <div key={s.label} className="bg-[#131619] border border-[#252b32] rounded-lg px-4 py-3">
-            <div className="text-[10px] uppercase tracking-widest text-[#5a6478] mb-1 font-mono">{s.label}</div>
-            <div className="text-xl font-bold font-mono" style={{ color: s.color }}>{s.val}</div>
-          </div>
+          <StatCard key={s.label} label={s.label} value={s.val} sub={s.sub} color={s.color} />
         ))}
       </div>
 
       {/* ── Domain rep distribution bar ──────────────────────────── */}
       {allDomains.length > 0 && (
-        <div className="bg-[#131619] border border-[#252b32] rounded-lg px-4 py-3">
-          <div className="text-[10px] uppercase tracking-widest text-[#5a6478] mb-3 font-mono">Domain Reputation Distribution</div>
-          <div className="flex rounded overflow-hidden h-4 gap-0.5">
-            {repDist.HIGH   > 0 && <div style={{ width: pct(repDist.HIGH)   + '%', background: '#1f5c3e' }} title={`HIGH: ${repDist.HIGH}`} />}
-            {repDist.MEDIUM > 0 && <div style={{ width: pct(repDist.MEDIUM) + '%', background: '#1a3a6e' }} title={`MEDIUM: ${repDist.MEDIUM}`} />}
-            {repDist.LOW    > 0 && <div style={{ width: pct(repDist.LOW)    + '%', background: '#5c3a1a' }} title={`LOW: ${repDist.LOW}`} />}
-            {repDist.BAD    > 0 && <div style={{ width: pct(repDist.BAD)    + '%', background: '#5c1a1a' }} title={`BAD: ${repDist.BAD}`} />}
-            {repDist.NA     > 0 && <div style={{ width: pct(repDist.NA)     + '%', background: '#1a1e22' }} title={`No data: ${repDist.NA}`} />}
+        <div className="kt-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-xs uppercase tracking-widest text-muted-foreground font-bold">Domain Reputation Distribution</div>
+            <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest bg-muted px-2 py-1 rounded">Overall Split</div>
           </div>
-          <div className="flex gap-4 mt-2">
-            {(['HIGH','MEDIUM','LOW','BAD'] as const).map(r => (
+          <div className="flex rounded-full overflow-hidden h-3 gap-0.5 bg-muted">
+            {repDist.HIGH > 0 && <div style={{ width: pct(repDist.HIGH) + '%', background: 'var(--success)' }} title={`HIGH: ${repDist.HIGH}`} />}
+            {repDist.MEDIUM > 0 && <div style={{ width: pct(repDist.MEDIUM) + '%', background: 'var(--info)' }} title={`MEDIUM: ${repDist.MEDIUM}`} />}
+            {repDist.LOW > 0 && <div style={{ width: pct(repDist.LOW) + '%', background: 'var(--warning)' }} title={`LOW: ${repDist.LOW}`} />}
+            {repDist.BAD > 0 && <div style={{ width: pct(repDist.BAD) + '%', background: 'var(--destructive)' }} title={`BAD: ${repDist.BAD}`} />}
+            {repDist.NA > 0 && <div style={{ width: pct(repDist.NA) + '%', background: 'var(--muted)' }} title={`No data: ${repDist.NA}`} />}
+          </div>
+          <div className="flex gap-6 mt-4 flex-wrap">
+            {(['HIGH', 'MEDIUM', 'LOW', 'BAD'] as const).map(r => (
               repDist[r] > 0 && (
-                <span key={r} className="text-[10px] font-mono flex items-center gap-1.5">
-                  <RepBadge val={r} />
-                  <span className="text-[#5a6478]">{repDist[r]} ({pct(repDist[r])}%)</span>
-                </span>
+                <div key={r} className="flex items-center gap-3">
+                  <Badge label={r} />
+                  <span className="text-xs text-muted-foreground font-bold">{repDist[r]} <span className="opacity-50 font-normal">({pct(repDist[r])}%)</span></span>
+                </div>
               )
             ))}
             {repDist.NA > 0 && (
-              <span className="text-[10px] font-mono text-[#3a4252]">
-                No data: {repDist.NA}
-              </span>
+              <div className="flex items-center gap-3">
+                <Badge label="N/A" />
+                <span className="text-xs text-muted-foreground font-bold">{repDist.NA} <span className="opacity-50 font-normal">({pct(repDist.NA)}%)</span></span>
+              </div>
             )}
           </div>
         </div>
       )}
 
       {/* ── Filters ──────────────────────────────────────────────── */}
-      <div className="flex gap-2 flex-wrap">
-        <input
-          type="text"
-          placeholder="Search domain…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="bg-[#131619] border border-[#252b32] rounded px-3 py-1.5 text-sm font-mono text-[#e2e8f0] placeholder-[#3a4252] focus:outline-none focus:border-[#4d8ff0] w-48"
-        />
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative group flex-1 min-w-[200px] max-w-sm">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground lg:group-focus-within:text-primary transition-colors">🔍</span>
+          <input
+            type="text"
+            placeholder="Search domains..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="kt-input pl-10 w-full px-4 py-2"
+          />
+        </div>
         <select value={serverFilter} onChange={e => setServerFilter(e.target.value)}
-          className="bg-[#131619] border border-[#252b32] rounded px-3 py-1.5 text-sm font-mono text-[#9aa5b4] focus:outline-none focus:border-[#4d8ff0]">
-          <option value="">All servers</option>
+          className="kt-input px-4 py-2 w-48">
+          <option value="">All Servers</option>
           {serverOptions.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
         <select value={repFilter} onChange={e => setRepFilter(e.target.value)}
-          className="bg-[#131619] border border-[#252b32] rounded px-3 py-1.5 text-sm font-mono text-[#9aa5b4] focus:outline-none focus:border-[#4d8ff0]">
-          <option value="">All rep</option>
-          {['HIGH','MEDIUM','LOW','BAD'].map(r => <option key={r} value={r}>{r}</option>)}
+          className="kt-input px-4 py-2 w-32 text-xs font-bold uppercase tracking-widest">
+          <option value="">All Rep</option>
+          {['HIGH', 'MEDIUM', 'LOW', 'BAD'].map(r => <option key={r} value={r}>{r}</option>)}
         </select>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-          className="bg-[#131619] border border-[#252b32] rounded px-3 py-1.5 text-sm font-mono text-[#9aa5b4] focus:outline-none focus:border-[#4d8ff0]">
-          <option value="">All status</option>
-          {['inbox','spam','blocked'].map(s => <option key={s} value={s}>{s}</option>)}
+          className="kt-input px-4 py-2 w-36 text-xs font-bold uppercase tracking-widest">
+          <option value="">All Status</option>
+          {['inbox', 'spam', 'blocked'].map(s => <option key={s} value={s}>{s}</option>)}
         </select>
         {(search || serverFilter || repFilter || statusFilter) && (
           <button
             onClick={() => { setSearch(''); setServerFilter(''); setRepFilter(''); setStatusFilter(''); }}
-            className="text-[11px] font-mono text-[#5a6478] hover:text-[#f04d4d] transition-colors px-2"
+            className="kt-btn kt-btn-outline px-4 py-2 text-destructive hover:bg-destructive/5 border-destructive/20"
           >
-            Clear ✕
+            Clear Filters
           </button>
         )}
-        <span className="ml-auto text-[11px] font-mono text-[#3a4252] self-center">
-          {filtered.length} / {allDomains.length} domains
-        </span>
+        <div className="ml-auto text-xs font-bold uppercase tracking-widest text-muted-foreground bg-muted px-3 py-1.5 rounded-lg border border-border">
+          {filtered.length} / {allDomains.length} domains visible
+        </div>
       </div>
 
       {/* ── Table ────────────────────────────────────────────────── */}
-      <div className="bg-[#131619] border border-[#252b32] rounded-lg overflow-hidden overflow-x-auto">
-        <table className="w-full text-sm min-w-[900px]">
-          <thead>
-            <tr className="border-b border-[#252b32]">
-              <SortTh col="domain"    label="Domain" />
-              <SortTh col="server"    label="Server" />
-              <SortTh col="health"    label="Health" />
-              <SortTh col="domainRep" label="Domain Rep" />
-              <SortTh col="ipRep"     label="IP Rep" />
-              <SortTh col="status"    label="Status" />
-              <SortTh col="spamRate"  label="Spam Rate" />
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 && (
+      <div className="kt-card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="kt-table min-w-[1000px]">
+            <thead>
               <tr>
-                <td colSpan={7} className="text-center py-12 text-[#5a6478] font-mono text-sm">
-                  {allDomains.length === 0
-                    ? 'No domains yet — add servers and import domains first.'
-                    : 'No domains match your filters.'}
-                </td>
+                <SortTh col="domain" label="Domain" />
+                <SortTh col="server" label="Server Node" />
+                <SortTh col="health" label="Health Score" />
+                <SortTh col="domainRep" label="Domain Rep" />
+                <SortTh col="ipRep" label="IP Rep" />
+                <SortTh col="status" label="Status" />
+                <SortTh col="spamRate" label="Spam Rate" />
               </tr>
-            )}
-            {filtered.map(d => {
-              const statusColor = d.status === 'inbox' ? '#4df0a0' : d.status === 'spam' ? '#f09a4d' : '#f04d4d';
-              return (
-                <tr key={d.id} className="border-b border-[#252b32] last:border-0 hover:bg-[#1a1e22] transition-colors">
-                  <td className="px-3 py-3">
-                    <span className="font-mono text-[#4df0a0] text-[13px] font-medium">{d.domain}</span>
+            </thead>
+            <tbody>
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="text-center py-20">
+                    <div className="text-4xl mb-3 opacity-20">📡</div>
+                    <div className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
+                      {allDomains.length === 0
+                        ? 'No domains registered yet'
+                        : 'No results found for current filters'}
+                    </div>
                   </td>
-                  <td className="px-3 py-3">
-                    <span className="text-[10px] font-mono bg-[#0d1e3e] text-[#4d8ff0] px-2 py-0.5 rounded border border-[#1a3a6e]">
+                </tr>
+              )}
+              {filtered.map(d => (
+                <tr key={d.id} className="hover:bg-muted/30 transition-colors group">
+                  <td className="px-5 py-4">
+                    <div className="font-bold text-foreground hover:text-primary transition-colors cursor-pointer">{d.domain}</div>
+                  </td>
+                  <td className="px-5 py-4">
+                    <span className="text-[10px] font-bold uppercase tracking-widest bg-info/10 text-info px-2 py-1 rounded border border-info/20">
                       {d.serverName}
                     </span>
                   </td>
-                  <td className="px-3 py-3">
-                    <div className="flex items-center gap-2">
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-3">
                       <HealthRing score={d.score} />
-                      <span className="text-[10px] font-mono" style={{ color: healthColor(d.score) }}>
-                        {healthLabel(d.score)}
-                      </span>
+                      <div className="flex flex-col">
+                        <span className="text-xs font-bold" style={{ color: healthColor(d.score) }}>{healthLabel(d.score)}</span>
+                        <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Score: {d.score}</span>
+                      </div>
                     </div>
                   </td>
-                  <td className="px-3 py-3"><RepBadge val={d.domainRep} /></td>
-                  <td className="px-3 py-3"><RepBadge val={d.ipRep} /></td>
-                  <td className="px-3 py-3">
-                    <span className="text-xs font-mono font-bold" style={{ color: statusColor }}>
-                      {d.status}
-                    </span>
-                  </td>
-                  <td className="px-3 py-3"><SpamBadge rate={d.spamRate} /></td>
+                  <td className="px-5 py-4"><Badge label={d.domainRep ?? 'N/A'} /></td>
+                  <td className="px-5 py-4"><Badge label={d.ipRep ?? 'N/A'} /></td>
+                  <td className="px-5 py-4"><Badge label={d.status} /></td>
+                  <td className="px-5 py-4"><SpamBadge rate={d.spamRate} /></td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

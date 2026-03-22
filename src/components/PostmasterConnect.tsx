@@ -18,7 +18,7 @@ export interface PMToken {
 
 export interface PMDayStats {
   date: string;
-  spamRate: number;
+  spamRate: number | null;
   domainRep: string;
   ipRep: string;
 }
@@ -120,9 +120,10 @@ export function parsePostmasterCredentialJson(rawJson: string): ParsedCredential
 
 export async function fetchDomainStats(
   token: PMToken,
-  domainName: string
+  domainName: string,
+  limit: number = 30
 ): Promise<{ stats: PMDayStats[]; error?: string }> {
-  const url = `${PM_API}/domains/${encodeURIComponent(domainName)}/trafficStats?pageSize=30`;
+  const url = `${PM_API}/domains/${encodeURIComponent(domainName)}/trafficStats?pageSize=${limit}`;
   let res: Response;
   try {
     res = await fetch(url, { headers: { Authorization: `Bearer ${token.access_token}` } });
@@ -161,18 +162,21 @@ export async function fetchDomainStats(
     const domainRep = rawDomRep
       ? rawDomRep.replace('_REPUTATION', '').replace('REPUTATION_CATEGORY_UNSPECIFIED', 'N/A') || 'N/A'
       : 'N/A';
+    const spamRateRaw = s.userReportedSpamRatio;
+    const spamRate = (spamRateRaw !== undefined && spamRateRaw !== null)
+      ? parseFloat((spamRateRaw * 100).toFixed(4))
+      : null;
+
     return {
-      _iso: iso,
-      date: new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      spamRate: parseFloat(((s.userReportedSpamRatio ?? 0) * 100).toFixed(4)),
+      date: iso,
+      spamRate,
       domainRep,
       ipRep: dominantIpRep(s.ipReputations),
     };
   });
 
-  parsed.sort((a, b) => a._iso.localeCompare(b._iso));
-  const stats: PMDayStats[] = parsed.map(({ _iso: _unused, ...rest }) => rest);
-  return { stats };
+  parsed.sort((a, b) => a.date.localeCompare(b.date));
+  return { stats: parsed as PMDayStats[] };
 }
 
 export function usePostmaster(uid?: string) {
@@ -322,82 +326,92 @@ export default function PostmasterConnect() {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="bg-[#131619] border border-[#252b32] rounded-lg p-4">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <div className="text-sm font-bold text-[#e2e8f0]">Google Postmaster Connect</div>
-            <div className="text-[11px] text-[#5a6478] font-mono mt-0.5">
-              Direct Google auth is the primary flow. JSON upload stays available as an optional fallback when needed.
-            </div>
+    <div className="space-y-6">
+      <div className="kt-card p-8 bg-muted/20 border-border/50 shadow-xl shadow-black/5 rounded-[2.5rem]">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-1">
+            <h3 className="text-xl font-black text-foreground uppercase tracking-tight">Google Postmaster Ingestion</h3>
+            <p className="text-[11px] text-muted-foreground font-bold uppercase tracking-[0.2em] opacity-60">
+              Direct Protocol Synchronization Layer
+            </p>
           </div>
-          <button
-            onClick={() => setJsonModalOpen(true)}
-            className="bg-[#1a1e22] border border-[#252b32] text-[#9aa5b4] text-sm font-mono px-4 py-2 rounded hover:border-[#4d8ff0] hover:text-[#4d8ff0] transition-all"
-          >
-            Upload JSON (optional)
-          </button>
-          <div className="flex flex-wrap gap-2">
-            {clientId && (
-              <span className="text-[10px] font-mono bg-[#0d1e3e] text-[#4d8ff0] border border-[#1a3a6e] px-2 py-0.5 rounded">
-                client_id ready
-              </span>
-            )}
-            {savedCredential?.projectId && (
-              <span className="text-[10px] font-mono bg-[#141b2a] text-[#9fb8f4] border border-[#2f3e5d] px-2 py-0.5 rounded">
-                project {savedCredential.projectId}
-              </span>
-            )}
+          
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex gap-2">
+              {clientId && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-primary">ID Configured</span>
+                </div>
+              )}
+              {savedCredential?.projectId && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-info/10 border border-info/20">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-info">Project: {savedCredential.projectId}</span>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => setJsonModalOpen(true)}
+              className="kt-btn kt-btn-light h-11 px-6 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all"
+            >
+              Protocol Settings
+            </button>
           </div>
         </div>
       </div>
 
       {!clientId ? (
-        <div className="bg-[#2e1e0d]/60 border border-[#f09a4d]/30 rounded-lg px-4 py-3">
-          <div className="text-sm font-bold text-[#f09a4d] mb-0.5">Google client JSON not configured yet</div>
-          <div className="text-[11px] text-[#5a6478] font-mono">
-            Open "Upload JSON (optional)" only if the direct Gmail/Postmaster auth flow still needs a client JSON fallback.
-          </div>
+        <div className="bg-warning/5 border border-warning/20 rounded-[2rem] p-8 flex items-start gap-6 animate-in fade-in slide-in-from-top-4 duration-500">
+           <div className="w-12 h-12 rounded-2xl bg-warning/20 flex items-center justify-center text-warning text-xl">⚠️</div>
+           <div className="space-y-1">
+              <h4 className="text-sm font-black text-warning uppercase tracking-widest">Client Identity Missing</h4>
+              <p className="text-[11px] text-muted-foreground leading-relaxed max-w-md">
+                Google OAuth credentials have not been configured. Access to Postmaster Tools requires a valid client JSON fallback to initialize the handshake.
+              </p>
+           </div>
         </div>
       ) : !connected ? (
-        <div className="bg-[#0d1e3e]/60 border border-[#1a3a6e] rounded-lg px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <div className="text-sm font-bold text-[#4d8ff0] mb-0.5">
-              Connect Google Postmaster Tools
-            </div>
-            <div className="text-[11px] text-[#5a6478] font-mono">
-              Automatically fetch domain reputation, spam rate and IP reputation daily
+        <div className="bg-primary/5 border border-primary/20 rounded-[2rem] p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="flex items-start gap-6">
+            <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center text-primary text-xl">🔌</div>
+            <div className="space-y-1">
+              <h4 className="text-sm font-black text-primary uppercase tracking-widest">Connect Authorization</h4>
+              <p className="text-[11px] text-muted-foreground leading-relaxed max-w-sm">
+                Grant permission to automatically aggregate domain reputation, spam metrics, and network health data.
+              </p>
             </div>
           </div>
           <button
             onClick={connect}
             disabled={connecting}
-            className="bg-[#4d8ff0] text-white text-sm font-bold font-mono px-4 py-2 rounded hover:opacity-85 transition-opacity disabled:opacity-50 whitespace-nowrap flex items-center gap-2"
+            className="kt-btn kt-btn-primary h-14 px-8 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 whitespace-nowrap"
           >
-            {connecting ? 'Connecting…' : 'Connect with Google →'}
+            {connecting ? 'Establishing...' : 'Initialize Connection →'}
           </button>
         </div>
       ) : (
-        <div className="bg-[#0d2e1e]/40 border border-[#4df0a0]/20 rounded-lg px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[#4df0a0] text-sm font-bold">Postmaster Connected</span>
-              <span className="text-[10px] text-[#5a6478] font-mono bg-[#131619] border border-[#252b32] px-2 py-0.5 rounded">
-                Live data fetched per domain on open
-              </span>
-            </div>
-            {fetchInfo.lastFetchAt && (
-              <div className="text-[11px] text-[#5a6478] font-mono mt-0.5">
-                Last fetch: {new Date(fetchInfo.lastFetchAt).toLocaleString('en-GB')}
-                {fetchInfo.lastFetchDomains ? ` · ${fetchInfo.lastFetchDomains} domains` : ''}
+        <div className="bg-success/5 border border-success/20 rounded-[2rem] p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="flex items-start gap-6">
+            <div className="w-12 h-12 rounded-2xl bg-success/20 flex items-center justify-center text-success text-xl">✅</div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <h4 className="text-sm font-black text-success uppercase tracking-widest">Cluster Synchronized</h4>
+                <div className="px-3 py-1 rounded-lg bg-background/50 border border-border text-[9px] font-black uppercase text-muted-foreground tracking-widest">Live Flow</div>
               </div>
-            )}
+              {fetchInfo.lastFetchAt && (
+                <p className="text-[11px] text-muted-foreground font-bold">
+                   Data heartbeat: <span className="text-foreground">{new Date(fetchInfo.lastFetchAt).toLocaleString('en-GB')}</span> 
+                   {fetchInfo.lastFetchDomains ? ` · Processing ${fetchInfo.lastFetchDomains} domains` : ''}
+                </p>
+              )}
+            </div>
           </div>
           <button
             onClick={() => { disconnect(); showToast('Postmaster disconnected'); }}
-            className="text-sm font-mono px-3 py-1.5 rounded bg-[#1a1e22] border border-[#252b32] text-[#5a6478] hover:text-[#f04d4d] hover:border-[#f04d4d] transition-all whitespace-nowrap"
+            className="kt-btn kt-btn-light h-12 px-6 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30 transition-all whitespace-nowrap"
           >
-            Disconnect
+            Terminate Sync
           </button>
         </div>
       )}

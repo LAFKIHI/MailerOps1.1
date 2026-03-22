@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppContext } from '../App';
-import { DEFAULT_ACTIONS, n2s, todayStr } from '../lib/constants';
+import { DEFAULT_ACTIONS, n2s, todayStr, parseSafeDate, fmtDate } from '../lib/constants';
+import StatCard, { Color } from '../components/StatCard';
 
 type Range = '7' | '30' | '90' | '365' | 'all' | 'custom';
 type AnalyticsTab = 'tasks' | 'deliveries';
@@ -124,48 +125,68 @@ export default function History() {
   ];
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center gap-2 flex-wrap">
-        <h1 className="font-['Syne',sans-serif] font-bold text-[#e2e8f0] text-base flex-1">History & Analytics</h1>
-        {(['tasks', 'deliveries'] as const).map(item => (
-          <button
-            key={item}
-            onClick={() => setTab(item)}
-            className={`text-xs font-mono px-3 py-1.5 rounded border transition-all ${
-              tab === item
-                ? 'bg-[#0d1e3e] border-[#4d8ff0] text-[#4d8ff0] font-bold'
-                : 'bg-[#1a1e22] border-[#252b32] text-[#5a6478] hover:border-[#4d8ff0] hover:text-[#4d8ff0]'
-            }`}
-          >
-            {item === 'tasks' ? 'Tasks History' : 'Deliveries Analytics'}
-          </button>
-        ))}
-        {RANGES.map(item => (
-          <button
-            key={item.val}
-            onClick={() => { setRange(item.val); setFrom(''); setTo(''); }}
-            className={`text-xs font-mono px-3 py-1.5 rounded border transition-all ${
-              range === item.val
-                ? 'bg-[#0d2e1e] border-[#4df0a0] text-[#4df0a0] font-bold'
-                : 'bg-[#1a1e22] border-[#252b32] text-[#5a6478] hover:border-[#4df0a0] hover:text-[#4df0a0]'
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-        <input
-          type="date"
-          value={from}
-          onChange={e => { setFrom(e.target.value); setRange('custom'); }}
-          className="text-xs font-mono bg-[#1a1e22] border border-[#252b32] rounded px-2 py-1.5 text-[#e2e8f0] outline-none focus:border-[#4df0a0]"
-        />
-        <span className="text-[#5a6478] text-xs">→</span>
-        <input
-          type="date"
-          value={to}
-          onChange={e => { setTo(e.target.value); setRange('custom'); }}
-          className="text-xs font-mono bg-[#1a1e22] border border-[#252b32] rounded px-2 py-1.5 text-[#e2e8f0] outline-none focus:border-[#4df0a0]"
-        />
+    <div className="space-y-6 md:space-y-8">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="font-bold text-foreground text-2xl flex items-center gap-3">
+             📡 History & Analytics
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Insightful metrics and activity logs for your mailing operations.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex p-1 bg-muted rounded-xl border border-border">
+            {(['tasks', 'deliveries'] as const).map(item => (
+              <button
+                key={item}
+                onClick={() => setTab(item)}
+                className={`text-xs font-bold px-4 py-2 rounded-lg transition-all ${
+                  tab === item
+                    ? 'bg-background text-primary shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {item === 'tasks' ? 'Tasks' : 'Deliveries'}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="kt-card p-4 flex items-center gap-3 flex-wrap border-dashed">
+        <div className="flex items-center gap-1.5 mr-2">
+          <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Range:</span>
+        </div>
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+          {RANGES.map(item => (
+            <button
+              key={item.val}
+              onClick={() => { setRange(item.val); setFrom(''); setTo(''); }}
+              className={`kt-btn kt-btn-xs px-3 py-1.5 whitespace-nowrap ${
+                range === item.val ? 'kt-btn-primary' : 'kt-btn-outline'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <div className="h-4 w-px bg-border mx-2 hidden sm:block" />
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={from}
+            onChange={e => { setFrom(e.target.value); setRange('custom'); }}
+            className="kt-input px-3 py-1.5 text-xs w-36"
+          />
+          <span className="text-muted-foreground">→</span>
+          <input
+            type="date"
+            value={to}
+            onChange={e => { setTo(e.target.value); setRange('custom'); }}
+            className="kt-input px-3 py-1.5 text-xs w-36"
+          />
+        </div>
       </div>
 
       {tab === 'tasks' ? (
@@ -233,15 +254,15 @@ function TaskAnalyticsView({
 
   return (
     <>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         {[
-          { label: 'Seeds', val: n2s(totalSeeds), sub: 'total period' },
-          { label: 'Avg / Day', val: n2s(avgTaskDay), sub: 'on active days' },
-          { label: 'Tasks', val: filteredTasks.length, sub: 'total' },
-          { label: 'Done', val: filteredTasks.length ? Math.round((doneTasks / filteredTasks.length) * 100) + '%' : '—', sub: `${doneTasks}/${filteredTasks.length}` },
-          { label: 'Active Days', val: taskDays.length, sub: 'with activity' },
+          { label: 'Seeds', val: n2s(totalSeeds), sub: 'Period total', color: 'success' as Color },
+          { label: 'Avg / Day', val: n2s(avgTaskDay), sub: 'Active average', color: '' as Color },
+          { label: 'Total Tasks', val: filteredTasks.length, sub: 'Filtered count', color: 'blue' as Color },
+          { label: 'Success Rate', val: filteredTasks.length ? Math.round((doneTasks / filteredTasks.length) * 100) + '%' : '—', sub: `${doneTasks}/${filteredTasks.length} done`, color: (doneTasks/filteredTasks.length > 0.8 ? 'success' : 'orange') as Color },
+          { label: 'Active Days', val: taskDays.length, sub: 'Days with load', color: '' as Color },
         ].map(card => (
-          <KpiCard key={card.label} {...card} accent="#4df0a0" />
+          <StatCard key={card.label} {...card} value={String(card.val)} />
         ))}
       </div>
 
@@ -280,16 +301,21 @@ function TaskAnalyticsView({
         }} valFn={v => `${v} tasks`} color="#4d8ff0" />
       </div>
 
-      <div className="bg-[#131619] border border-[#252b32] rounded-lg overflow-hidden">
-        <div className="px-4 py-3 border-b border-[#252b32] text-[11px] uppercase tracking-widest text-[#5a6478] font-medium">
-          Day-by-Day Log — {taskDays.length} active days
+      <div className="kt-card overflow-hidden">
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between bg-muted/30">
+          <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+            Daily Activity Log
+          </div>
+          <div className="text-[10px] font-bold text-muted-foreground px-2 py-1 bg-background rounded-lg border border-border">
+            {taskDays.length} Active Days
+          </div>
         </div>
-        <div className="overflow-auto max-h-[360px]">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+          <table className="kt-table">
             <thead>
-              <tr className="border-b border-[#252b32] sticky top-0 bg-[#131619]">
-                {['Date', 'Seeds', 'Tasks', 'Done', '%', 'Bar'].map((header, i) => (
-                  <th key={header} className={`text-left px-4 py-2 text-[10px] uppercase tracking-widest text-[#5a6478] font-medium ${[4, 5].includes(i) ? 'hidden sm:table-cell' : ''}`}>
+              <tr>
+                {['Date', 'Seeds', 'Tasks', 'Done', 'Rate', 'Activity'].map((header, i) => (
+                  <th key={header} className={`px-5 py-3 ${[4, 5].includes(i) ? 'hidden sm:table-cell' : ''}`}>
                     {header}
                   </th>
                 ))}
@@ -303,14 +329,14 @@ function TaskAnalyticsView({
                 const pct = Math.round((seeds / maxSeedsDay) * 100);
                 const completePct = dayTasks.length ? Math.round((done / dayTasks.length) * 100) : 0;
                 return (
-                  <tr key={day} className="border-b border-[#252b32] last:border-0 hover:bg-[#1a1e22] transition-colors">
-                    <td className="px-4 py-2.5 font-medium text-[#e2e8f0] whitespace-nowrap">{formatDay(day)}</td>
-                    <td className="px-4 py-2.5 font-mono font-bold text-[#e2e8f0]">{seeds.toLocaleString()}</td>
-                    <td className="px-4 py-2.5 text-[#9aa5b4]">{dayTasks.length}</td>
-                    <td className="px-4 py-2.5 text-[#4df0a0]">{done}</td>
-                    <td className="px-4 py-2.5 text-[#9aa5b4] text-xs hidden sm:table-cell">{completePct}%</td>
-                    <td className="px-4 py-2.5 w-28 hidden sm:table-cell">
-                      <ProgressBar value={pct} color="#4df0a0" />
+                  <tr key={day} className="hover:bg-muted/30 transition-colors">
+                    <td className="px-5 py-3 font-bold text-foreground whitespace-nowrap">{formatDay(day)}</td>
+                    <td className="px-5 py-3 font-mono font-bold text-primary">{seeds.toLocaleString()}</td>
+                    <td className="px-5 py-3 text-muted-foreground font-medium">{dayTasks.length}</td>
+                    <td className="px-5 py-3 text-success font-bold">{done}</td>
+                    <td className="px-5 py-3 text-muted-foreground text-xs hidden sm:table-cell font-bold">{completePct}%</td>
+                    <td className="px-5 py-3 w-40 hidden sm:table-cell">
+                      <ProgressBar value={pct} color="var(--primary)" />
                     </td>
                   </tr>
                 );
@@ -356,15 +382,15 @@ function DeliveryAnalyticsView({
 
   return (
     <>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         {[
-          { label: 'Sessions', val: filteredSessions.length, sub: 'total period' },
-          { label: 'Processed', val: n2s(totalDeliveryProcessed), sub: 'all outcomes' },
-          { label: 'Deleted', val: n2s(totalDeliveryDeleted), sub: 'lost mailboxes' },
-          { label: 'Avg Sessions / Day', val: avgSessionsDay, sub: 'on active days' },
-          { label: 'Tracked Deliveries', val: new Set(filteredSessions.map(s => s.deliveryId)).size, sub: `${deliveries.length} total` },
+          { label: 'Sessions', val: filteredSessions.length, sub: 'Total period', color: 'blue' as Color },
+          { label: 'Processed', val: n2s(totalDeliveryProcessed), sub: 'Mailbox items', color: '' as Color },
+          { label: 'Deleted', val: n2s(totalDeliveryDeleted), sub: 'Lost boxes', color: 'red' as Color },
+          { label: 'Avg Load', val: avgSessionsDay, sub: 'Sessions/day', color: '' as Color },
+          { label: 'Deliveries', val: new Set(filteredSessions.map(s => s.deliveryId)).size, sub: 'Active objects', color: 'orange' as Color },
         ].map(card => (
-          <KpiCard key={card.label} {...card} accent="#4d8ff0" />
+          <StatCard key={card.label} {...card} value={String(card.val)} />
         ))}
       </div>
 
@@ -406,16 +432,21 @@ function DeliveryAnalyticsView({
         <TopList title="Top RDPs" items={topSessionRdp} labelFn={k => k === 'No RDP' ? 'No RDP' : `RDP ${k}`} valFn={v => `${v} sessions`} color="#4d8ff0" />
       </div>
 
-      <div className="bg-[#131619] border border-[#252b32] rounded-lg overflow-hidden">
-        <div className="px-4 py-3 border-b border-[#252b32] text-[11px] uppercase tracking-widest text-[#5a6478] font-medium">
-          Deliveries Log — {deliveryDays.length} active days
+      <div className="kt-card overflow-hidden">
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between bg-muted/30">
+          <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+            Deliveries History Log
+          </div>
+          <div className="text-[10px] font-bold text-muted-foreground px-2 py-1 bg-background rounded-lg border border-border">
+            {deliveryDays.length} Active Days
+          </div>
         </div>
-        <div className="overflow-auto max-h-[360px]">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+          <table className="kt-table">
             <thead>
-              <tr className="border-b border-[#252b32] sticky top-0 bg-[#131619]">
-                {['Date', 'Sessions', 'Succeeded', 'Deleted', 'Bad Proxy', 'Bar'].map(header => (
-                  <th key={header} className="text-left px-4 py-2 text-[10px] uppercase tracking-widest text-[#5a6478] font-medium">
+              <tr>
+                {['Date', 'Sessions', 'Succeeded', 'Deleted', 'Issues', 'Load'].map(header => (
+                  <th key={header} className="px-5 py-3">
                     {header}
                   </th>
                 ))}
@@ -426,14 +457,14 @@ function DeliveryAnalyticsView({
                 const stats = deliveryByDay[day];
                 const pct = Math.round((stats.sessions / maxDeliveryDay) * 100);
                 return (
-                  <tr key={day} className="border-b border-[#252b32] last:border-0 hover:bg-[#1a1e22] transition-colors">
-                    <td className="px-4 py-2.5 font-medium text-[#e2e8f0] whitespace-nowrap">{formatDay(day)}</td>
-                    <td className="px-4 py-2.5 text-[#9aa5b4]">{stats.sessions}</td>
-                    <td className="px-4 py-2.5 text-[#4df0a0]">{stats.succeeded}</td>
-                    <td className="px-4 py-2.5 text-[#f04d4d]">{stats.deleted}</td>
-                    <td className="px-4 py-2.5 text-[#f09a4d]">{stats.badProxy}</td>
-                    <td className="px-4 py-2.5 w-28">
-                      <ProgressBar value={pct} color="#4d8ff0" />
+                  <tr key={day} className="hover:bg-muted/30 transition-colors">
+                    <td className="px-5 py-3 font-bold text-foreground whitespace-nowrap">{formatDay(day)}</td>
+                    <td className="px-5 py-3 text-primary font-bold">{stats.sessions}</td>
+                    <td className="px-5 py-3 text-success font-bold">{stats.succeeded}</td>
+                    <td className="px-5 py-3 text-destructive font-bold">{stats.deleted}</td>
+                    <td className="px-5 py-3 text-warning font-bold">{stats.badProxy}</td>
+                    <td className="px-5 py-3 w-40">
+                      <ProgressBar value={pct} color="var(--info)" />
                     </td>
                   </tr>
                 );
@@ -459,8 +490,11 @@ function KpiCard({ label, val, sub, accent }: { label: string; val: string | num
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-[#131619] border border-[#252b32] rounded-lg p-4">
-      <div className="text-[11px] uppercase tracking-widest text-[#5a6478] mb-3 font-medium">{title}</div>
+    <div className="kt-card p-6">
+      <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-6 flex items-center gap-2">
+        <span className="w-1.5 h-4 bg-primary rounded-full" />
+        {title}
+      </div>
       {children}
     </div>
   );
@@ -468,17 +502,17 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
 
 function EmptyState({ icon, text }: { icon: string; text: string }) {
   return (
-    <div className="border border-dashed border-[#252b32] rounded-lg p-12 text-center">
-      <div className="text-3xl mb-3">{icon}</div>
-      <p className="text-[#5a6478] font-mono text-sm">{text}</p>
+    <div className="kt-card border-dashed p-16 text-center">
+      <div className="text-5xl mb-4 opacity-30 grayscale">{icon}</div>
+      <p className="text-muted-foreground font-bold uppercase tracking-widest text-xs">{text}</p>
     </div>
   );
 }
 
 function ProgressBar({ value, color }: { value: number; color: string }) {
   return (
-    <div className="h-1.5 bg-[#252b32] rounded-full overflow-hidden">
-      <div className="h-full rounded-full" style={{ width: `${value}%`, background: color }} />
+    <div className="h-2 bg-muted rounded-full overflow-hidden">
+      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${value}%`, background: color }} />
     </div>
   );
 }
@@ -503,43 +537,49 @@ function ValueBarChart({ days, values, color, maxValue }: { days: string[]; valu
     const chartW = width - padding.l - padding.r;
     const chartH = height - padding.t - padding.b;
     const count = days.length;
-    const barW = Math.max(2, Math.min(16, chartW / Math.max(count, 1) - 2));
+    const barW = Math.max(2, Math.min(16, chartW / Math.max(count, 1) - 4));
 
     [0.5, 1].forEach(fraction => {
       const y = padding.t + chartH * (1 - fraction);
-      ctx.strokeStyle = '#252b32';
+      ctx.strokeStyle = 'var(--border)';
+      ctx.setLineDash([4, 4]);
       ctx.beginPath();
       ctx.moveTo(padding.l, y);
       ctx.lineTo(width - padding.r, y);
       ctx.stroke();
-      ctx.fillStyle = '#5a6478';
-      ctx.font = '10px monospace';
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'var(--muted-foreground)';
+      ctx.font = 'bold 10px Inter';
       ctx.textAlign = 'right';
-      ctx.fillText(n2s(Math.round(maxValue * fraction)), padding.l - 4, y + 3);
+      ctx.fillText(n2s(Math.round(maxValue * fraction)), padding.l - 8, y + 3);
     });
 
     days.forEach((day, index) => {
       const x = padding.l + (index / Math.max(count - 1, 1)) * chartW - barW / 2;
       const barH = Math.max(2, (values[index] / Math.max(maxValue, 1)) * chartH);
-      ctx.fillStyle = day === todayStr() ? '#4df0a0' : color;
+      ctx.fillStyle = day === todayStr() ? 'var(--primary)' : color;
       ctx.beginPath();
-      ctx.roundRect(x, padding.t + chartH - barH, barW, barH, 2);
+      ctx.roundRect(x, padding.t + chartH - barH, barW, barH, 3);
       ctx.fill();
     });
 
     const step = Math.max(1, Math.floor(count / 5));
-    ctx.fillStyle = '#5a6478';
-    ctx.font = '10px monospace';
+    ctx.fillStyle = 'var(--muted-foreground)';
+    ctx.font = 'bold 9px Inter';
     ctx.textAlign = 'center';
     days.forEach((day, index) => {
       if (index % step === 0 || index === count - 1) {
         const x = padding.l + (index / Math.max(count - 1, 1)) * chartW;
-        ctx.fillText(new Date(day + 'T12:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }), x, height - 3);
+        ctx.fillText(fmtDate(day).toUpperCase(), x, height - 3);
       }
     });
   }, [days, values, color, maxValue]);
 
-  return <canvas ref={canvasRef} style={{ display: 'block', width: '100%' }} height={150} />;
+  return (
+    <div className="w-full overflow-hidden">
+      <canvas ref={canvasRef} style={{ display: 'block', width: '100%' }} height={150} />
+    </div>
+  );
 }
 
 function StackedChart({
@@ -576,7 +616,7 @@ function StackedChart({
     const chartW = width - padding.l - padding.r;
     const chartH = height - padding.t - padding.b;
     const count = days.length;
-    const barW = Math.max(2, Math.min(16, chartW / Math.max(count, 1) - 2));
+    const barW = Math.max(2, Math.min(16, chartW / Math.max(count, 1) - 4));
 
     days.forEach((day, index) => {
       const x = padding.l + (index / Math.max(count - 1, 1)) * chartW - barW / 2;
@@ -585,30 +625,34 @@ function StackedChart({
       if (bH > 0) {
         ctx.fillStyle = colorB;
         ctx.beginPath();
-        ctx.roundRect(x, padding.t + chartH - aH - bH, barW, Math.max(bH, 2), 2);
+        ctx.roundRect(x, padding.t + chartH - aH - bH, barW, Math.max(bH, 2), 3);
         ctx.fill();
       }
       if (aH > 0) {
-        ctx.fillStyle = day === todayStr() ? '#4df0a0' : colorA;
+        ctx.fillStyle = day === todayStr() ? 'var(--primary)' : colorA;
         ctx.beginPath();
-        ctx.roundRect(x, padding.t + chartH - aH, barW, Math.max(aH, 2), 2);
+        ctx.roundRect(x, padding.t + chartH - aH, barW, Math.max(aH, 2), 3);
         ctx.fill();
       }
     });
 
     const step = Math.max(1, Math.floor(count / 5));
-    ctx.fillStyle = '#5a6478';
-    ctx.font = '10px monospace';
+    ctx.fillStyle = 'var(--muted-foreground)';
+    ctx.font = 'bold 9px Inter';
     ctx.textAlign = 'center';
     days.forEach((day, index) => {
       if (index % step === 0 || index === count - 1) {
         const x = padding.l + (index / Math.max(count - 1, 1)) * chartW;
-        ctx.fillText(new Date(day + 'T12:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }), x, height - 3);
+        ctx.fillText(fmtDate(day).toUpperCase(), x, height - 3);
       }
     });
   }, [days, seriesA, seriesB, colorA, colorB]);
 
-  return <canvas ref={canvasRef} style={{ display: 'block', width: '100%' }} height={150} />;
+  return (
+    <div className="w-full overflow-hidden">
+      <canvas ref={canvasRef} style={{ display: 'block', width: '100%' }} height={150} />
+    </div>
+  );
 }
 
 function Heatmap({ items, label }: { items: { date: string; value: number }[]; label: string }) {
@@ -628,13 +672,13 @@ function Heatmap({ items, label }: { items: { date: string; value: number }[]; l
 
   const weeks: typeof cells[] = [];
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
-  const colors = ['#1a1e22', '#1a3d2e', '#1f5c3e', '#27824f', '#33b368', '#4df0a0'];
+  const colors = ['var(--muted)', '#1a3d2e', '#1f5c3e', '#27824f', '#33b368', 'var(--success)'];
 
   return (
     <div className="overflow-x-auto pb-1">
-      <div className="flex gap-[3px]">
+      <div className="flex gap-[4px]">
         {weeks.map((week, index) => (
-          <div key={index} className="flex flex-col gap-[3px]">
+          <div key={index} className="flex flex-col gap-[4px]">
             {week.map(cell => {
               const level = cell.value === 0 ? 0 : Math.min(5, Math.ceil((cell.value / maxValue) * 5));
               return (
@@ -642,14 +686,14 @@ function Heatmap({ items, label }: { items: { date: string; value: number }[]; l
                   key={cell.date}
                   title={`${cell.date}: ${cell.value.toLocaleString()} ${label}`}
                   style={{ background: colors[level] }}
-                  className="w-[13px] h-[13px] rounded-[2px] cursor-default"
+                  className="w-[14px] h-[14px] rounded-[3px] cursor-default hover:ring-2 hover:ring-primary/50 transition-all"
                 />
               );
             })}
           </div>
         ))}
       </div>
-      <div className="flex items-center gap-1.5 mt-2 text-[10px] text-[#5a6478]">
+      <div className="flex items-center gap-2 mt-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
         Less {colors.map((color, index) => <div key={index} style={{ background: color }} className="w-[11px] h-[11px] rounded-[2px]" />)} More
       </div>
     </div>
@@ -671,17 +715,22 @@ function TopList({
 }) {
   const max = Math.max(...items.map(([, value]) => value), 1);
   return (
-    <div className="bg-[#131619] border border-[#252b32] rounded-lg p-4">
-      <div className="text-[11px] uppercase tracking-widest text-[#5a6478] mb-3 font-medium">{title}</div>
-      <ul className="space-y-2">
+    <div className="kt-card p-6">
+      <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-6 flex items-center gap-2">
+        <span className="w-1.5 h-4 bg-primary rounded-full" />
+        {title}
+      </div>
+      <ul className="space-y-4">
         {items.map(([key, value], index) => (
-          <li key={key} className="flex items-center gap-2">
-            <span className="text-[10px] text-[#5a6478] w-4 text-right">{index + 1}</span>
-            <span className="flex-1 text-xs text-[#9aa5b4] font-mono truncate">{labelFn(key)}</span>
-            <div className="w-16 h-1 bg-[#252b32] rounded-full overflow-hidden">
-              <div className="h-full rounded-full" style={{ width: `${(value / max) * 100}%`, background: color }} />
+          <li key={key} className="group">
+            <div className="flex items-center gap-3 mb-1.5">
+              <span className="text-[10px] font-bold text-muted-foreground w-4">{index + 1}</span>
+              <span className="flex-1 text-xs text-foreground font-bold truncate group-hover:text-primary transition-colors">{labelFn(key)}</span>
+              <span className="text-xs font-bold font-mono" style={{ color }}>{valFn(value)}</span>
             </div>
-            <span className="text-xs font-mono font-bold" style={{ color }}>{valFn(value)}</span>
+            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${(value / max) * 100}%`, background: color }} />
+            </div>
           </li>
         ))}
       </ul>
@@ -690,7 +739,7 @@ function TopList({
 }
 
 function formatDay(day: string) {
-  const weekday = new Date(day + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short' });
-  const date = new Date(day + 'T12:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' });
+  const weekday = parseSafeDate(day)?.toLocaleDateString('en-GB', { weekday: 'short' }) || '—';
+  const date = parseSafeDate(day)?.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }) || '—';
   return `${date} ${weekday}`;
 }

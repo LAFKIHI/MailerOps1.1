@@ -42,3 +42,6 @@ logs/
 *.log
 tmp/
 temp/
+backend/data.sqlite
+backend/*.sqlite
+*.sqlite

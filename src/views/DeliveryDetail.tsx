@@ -200,35 +200,35 @@ export default function DeliveryDetail() {
   return (
     <div className="space-y-5">
       {/* breadcrumb */}
-      <div className="flex items-center gap-2 text-xs font-mono text-[#5a6478]">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <button onClick={() => navigate('/deliveries')}
-          className="hover:text-[#4df0a0] transition-colors">Deliveries</button>
+          className="hover:text-primary transition-colors">Deliveries</button>
         <span>/</span>
-        <span className="text-[#e2e8f0]">{delivery.name}</span>
+        <span className="text-foreground">{delivery.name}</span>
       </div>
 
       {/* header */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="font-['Syne',sans-serif] font-bold text-[#e2e8f0] text-lg">{delivery.name}</h1>
+            <h1 className="text-xl font-bold text-foreground">{delivery.name}</h1>
             <button
               onClick={() => { setNewName(delivery.name); setNewTotal(String(delivery.totalBoxes)); setEditMeta(true); }}
-              className="text-[11px] font-mono px-2 py-0.5 rounded border border-[#252b32] text-[#5a6478] hover:text-[#4df0a0] hover:border-[#4df0a0] transition-all">
+              className="kt-btn kt-btn-outline px-2 py-0.5 text-xs">
               Edit
             </button>
             {inProgress > 0 && (
-              <span className="text-[10px] bg-[#2e1e0d] text-[#f09a4d] border border-[#f09a4d]/30 px-2 py-0.5 rounded font-mono animate-pulse">
+              <span className="text-xs bg-warning/10 text-warning border border-warning/30 px-2 py-0.5 rounded animate-pulse">
                 ⏳ {inProgress} in progress
               </span>
             )}
           </div>
           {delivery.notes && (
-            <p className="text-xs text-[#5a6478] font-mono mt-1">{delivery.notes}</p>
+            <p className="text-sm text-muted-foreground mt-1">{delivery.notes}</p>
           )}
         </div>
         <button onClick={openNew}
-          className="bg-[#4df0a0] text-black text-sm font-bold font-mono px-4 py-2 rounded hover:opacity-85 transition-opacity">
+          className="kt-btn kt-btn-primary">
           + Start Session
         </button>
       </div>
@@ -236,71 +236,71 @@ export default function DeliveryDetail() {
       {/* KPI row */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
-          { label: 'Started With', val: delivery.totalBoxes.toLocaleString(),    color: '#e2e8f0' },
-          { label: 'Active Now',   val: delivery.currentBoxes.toLocaleString(),  color: '#4df0a0' },
-          { label: 'Total Lost',   val: totalLost.toLocaleString(),              color: '#f04d4d' },
+          { label: 'Started With', val: delivery.totalBoxes.toLocaleString(),    color: 'text-foreground' },
+          { label: 'Active Now',   val: delivery.currentBoxes.toLocaleString(),  color: 'text-success' },
+          { label: 'Total Lost',   val: totalLost.toLocaleString(),              color: 'text-destructive' },
           { label: 'Survival',     val: survPct + '%',
-            color: survPct >= 90 ? '#4df0a0' : survPct >= 70 ? '#f09a4d' : '#f04d4d' },
-          { label: 'Sessions',     val: sessions.length,                         color: '#4d8ff0' },
-          { label: 'Proxy Swaps',  val: totalBadProxy.toLocaleString(),          color: '#f09a4d' },
+            color: survPct >= 90 ? 'text-success' : survPct >= 70 ? 'text-warning' : 'text-destructive' },
+          { label: 'Sessions',     val: sessions.length,                         color: 'text-primary' },
+          { label: 'Proxy Swaps',  val: totalBadProxy.toLocaleString(),          color: 'text-warning' },
         ].map(k => (
-          <div key={k.label} className="bg-[#131619] border border-[#252b32] rounded-lg px-4 py-3">
-            <div className="text-[10px] uppercase tracking-widest text-[#5a6478] mb-1">{k.label}</div>
-            <div className="text-xl font-bold font-mono" style={{ color: k.color }}>{k.val}</div>
+          <div key={k.label} className="kt-card px-4 py-3">
+            <div className="text-xs uppercase tracking-widest text-muted-foreground mb-1">{k.label}</div>
+            <div className={`text-xl font-bold ${k.color}`}>{k.val}</div>
           </div>
         ))}
       </div>
 
       {/* --- BEGIN SHADOW UI INJECTION --- */}
       {FEATURES.SMART_STATS && (
-        <div className="bg-[#131619] border border-[#252b32] rounded-lg p-4">
-          <div className="text-[11px] uppercase tracking-widest text-[#5a6478] mb-3 font-medium">Health</div>
-          <div className="flex gap-6 text-[12px] font-mono flex-wrap">
-            <span className="text-[#4df0a0]">Active Accounts: {delivery.currentBoxes.toLocaleString()}</span>
-            <span className="text-[#f04d4d]">Disabled: {totalLost.toLocaleString()}</span>
-            <span className="text-[#4d8ff0]">Health Score: {survPct}%</span>
+        <div className="kt-card p-4">
+          <div className="text-xs uppercase tracking-widest text-muted-foreground mb-3 font-medium">Health</div>
+          <div className="flex gap-6 text-sm flex-wrap">
+            <span className="text-success">Active Accounts: {delivery.currentBoxes.toLocaleString()}</span>
+            <span className="text-destructive">Disabled: {totalLost.toLocaleString()}</span>
+            <span className="text-primary">Health Score: {survPct}%</span>
           </div>
         </div>
       )}
       {/* --- END SHADOW UI INJECTION --- */}
 
       {/* lifetime health bar */}
-      <div className="bg-[#131619] border border-[#252b32] rounded-lg p-4">
-        <div className="text-[11px] uppercase tracking-widest text-[#5a6478] mb-3 font-medium">
+      <div className="kt-card p-4">
+        <div className="text-xs uppercase tracking-widest text-muted-foreground mb-3 font-medium">
           Mailbox Lifetime — {delivery.totalBoxes} total
         </div>
         <div className="flex h-5 rounded-lg overflow-hidden gap-px">
-          <div className="bg-[#4df0a0] flex items-center justify-center"
+          <div className="bg-success flex items-center justify-center"
             style={{ width: `${survPct}%` }}
             title={`Active: ${delivery.currentBoxes}`}>
             {survPct > 12 && (
-              <span className="text-[10px] font-bold text-black">{delivery.currentBoxes}</span>
+              <span className="text-xs font-bold text-white">{delivery.currentBoxes}</span>
             )}
           </div>
-          <div className="bg-[#f04d4d] flex items-center justify-center"
+          <div className="bg-destructive flex items-center justify-center"
             style={{ width: `${100 - survPct}%` }}
             title={`Lost: ${totalLost}`}>
             {(100 - survPct) > 8 && (
-              <span className="text-[10px] font-bold text-white">{totalLost}</span>
+              <span className="text-xs font-bold text-white">{totalLost}</span>
             )}
           </div>
         </div>
-        <div className="flex gap-6 mt-2 text-[11px] font-mono flex-wrap">
-          <span className="text-[#4df0a0]">■ {delivery.currentBoxes.toLocaleString()} active ({survPct}%)</span>
-          <span className="text-[#f04d4d]">■ {totalLost.toLocaleString()} lost ({100 - survPct}%)</span>
-          <span className="text-[#f09a4d]">⟳ {totalBadProxy.toLocaleString()} proxy swaps total</span>
+        <div className="flex gap-6 mt-2 text-xs flex-wrap">
+          <span className="text-success">■ {delivery.currentBoxes.toLocaleString()} active ({survPct}%)</span>
+          <span className="text-destructive">■ {totalLost.toLocaleString()} lost ({100 - survPct}%)</span>
+          <span className="text-warning">⟳ {totalBadProxy.toLocaleString()} proxy swaps total</span>
         </div>
       </div>
 
       {/* session timeline */}
       <div>
-        <h2 className="text-[11px] uppercase tracking-widest text-[#5a6478] font-medium mb-3">
+        <h2 className="text-xs uppercase tracking-widest text-muted-foreground font-medium mb-3">
           Sessions — {sessions.length}
         </h2>
 
         {sessions.length === 0 ? (
-          <div className="border border-dashed border-[#252b32] rounded-lg p-10 text-center">
-            <p className="text-[#5a6478] font-mono text-sm">
+          <div className="kt-card border-dashed p-10 text-center">
+            <p className="text-muted-foreground text-sm">
               No sessions yet.<br />Click "+ Start Session" when you begin running an action.
             </p>
           </div>
@@ -318,29 +318,29 @@ export default function DeliveryDetail() {
 
               return (
                 <div key={s.id}
-                  className={`bg-[#131619] border rounded-lg p-4 transition-all group
-                    ${i === 0 && done ? 'border-[#4df0a0]/25' :
-                      i === 0 && !done ? 'border-[#f09a4d]/40' : 'border-[#252b32]'}`}
+                  className={`kt-card p-4 transition-all group
+                    ${i === 0 && done ? 'border-success/30' :
+                      i === 0 && !done ? 'border-warning/50' : ''}`}
                 >
                   {/* session header */}
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="flex items-center gap-2 flex-wrap">
                       {/* status pill */}
                       {done ? (
-                        <span className="text-[10px] bg-[#0d2e1e] text-[#4df0a0] border border-[#1f5c3e] px-2 py-0.5 rounded font-mono">
+                        <span className="text-xs bg-success/10 text-success border border-success/20 px-2 py-0.5 rounded">
                           ✓ Done
                         </span>
                       ) : (
-                        <span className="text-[10px] bg-[#2e1e0d] text-[#f09a4d] border border-[#f09a4d]/30 px-2 py-0.5 rounded font-mono animate-pulse">
+                        <span className="text-xs bg-warning/10 text-warning border border-warning/30 px-2 py-0.5 rounded animate-pulse">
                           ⏳ In Progress
                         </span>
                       )}
-                      <span className="font-mono font-bold text-[#e2e8f0] text-sm">{fmtDate(s.date)}</span>
-                      <span className="text-[10px] bg-[#1a1e22] text-[#9aa5b4] border border-[#252b32] px-2 py-0.5 rounded font-mono max-w-[260px] truncate">
+                      <span className="font-bold text-foreground text-sm">{fmtDate(s.date)}</span>
+                      <span className="text-xs bg-accent text-muted-foreground border border-border px-2 py-0.5 rounded max-w-[260px] truncate">
                         {s.actionCode} — {act?.label.slice(0, 35) ?? '—'}
                       </span>
                       {s.serverId && (
-                        <span className="text-[10px] bg-[#0d1e3e] text-[#4d8ff0] px-2 py-0.5 rounded font-mono">
+                        <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
                           RDP {s.serverId}
                         </span>
                       )}
@@ -351,23 +351,23 @@ export default function DeliveryDetail() {
                       {/* Main CTA: Enter Results (if in progress) */}
                       {!done && (
                         <button onClick={() => openResults(s)}
-                          className="text-xs font-mono font-bold px-3 py-1 rounded bg-[#4df0a0] text-black hover:opacity-85 transition-opacity">
+                          className="kt-btn kt-btn-primary px-3 py-1 text-xs">
                           Enter Results
                         </button>
                       )}
                       {/* Edit results (if done) */}
                       {done && (
                         <button onClick={() => openResults(s)}
-                          className="text-[11px] font-mono px-2 py-0.5 rounded border border-[#252b32] text-[#5a6478] hover:text-[#4df0a0] hover:border-[#4df0a0] transition-all opacity-0 group-hover:opacity-100">
+                          className="kt-btn kt-btn-outline px-2 py-0.5 text-xs opacity-0 group-hover:opacity-100">
                           Edit Results
                         </button>
                       )}
                       <button onClick={() => openEdit(s)}
-                        className="text-[11px] font-mono px-2 py-0.5 rounded border border-[#252b32] text-[#5a6478] hover:text-[#9aa5b4] hover:border-[#9aa5b4] transition-all opacity-0 group-hover:opacity-100">
+                        className="kt-btn kt-btn-outline px-2 py-0.5 text-xs opacity-0 group-hover:opacity-100">
                         Edit Info
                       </button>
                       <button onClick={() => handleDeleteSession(s)}
-                        className="text-[11px] font-mono px-2 py-0.5 rounded border border-[#252b32] text-[#5a6478] hover:text-[#f04d4d] hover:border-[#f04d4d] transition-all opacity-0 group-hover:opacity-100">
+                        className="kt-btn kt-btn-outline px-2 py-0.5 text-xs text-muted-foreground hover:border-destructive hover:text-destructive opacity-0 group-hover:opacity-100">
                         Del
                       </button>
                     </div>
@@ -377,32 +377,32 @@ export default function DeliveryDetail() {
                   {done && total > 0 && (
                     <>
                       <div className="mt-3 mb-2">
-                        <div className="flex h-3 rounded-full overflow-hidden gap-px bg-[#252b32]">
-                          {sPct > 0 && <div className="bg-[#4df0a0]" style={{ width: `${sPct}%` }} title={`Succeeded: ${s.succeeded}`} />}
-                          {bPct > 0 && <div className="bg-[#f09a4d]" style={{ width: `${bPct}%` }} title={`Bad proxy: ${s.badProxy}`} />}
-                          {dPct > 0 && <div className="bg-[#f04d4d]" style={{ width: `${dPct}%` }} title={`Deleted: ${s.deleted}`} />}
-                          {uPct > 0 && <div className="bg-[#252b32]" style={{ width: `${uPct}%` }} />}
+                        <div className="flex h-3 rounded-full overflow-hidden gap-px bg-border">
+                          {sPct > 0 && <div className="bg-success" style={{ width: `${sPct}%` }} title={`Succeeded: ${s.succeeded}`} />}
+                          {bPct > 0 && <div className="bg-warning" style={{ width: `${bPct}%` }} title={`Bad proxy: ${s.badProxy}`} />}
+                          {dPct > 0 && <div className="bg-destructive" style={{ width: `${dPct}%` }} title={`Deleted: ${s.deleted}`} />}
+                          {uPct > 0 && <div className="bg-border" style={{ width: `${uPct}%` }} />}
                         </div>
                       </div>
-                      <div className="flex gap-5 text-[12px] font-mono flex-wrap">
-                        {s.succeeded > 0 && <span className="text-[#4df0a0]">✓ <strong>{s.succeeded}</strong> ok</span>}
-                        {s.badProxy  > 0 && <span className="text-[#f09a4d]">⟳ <strong>{s.badProxy}</strong> proxy replaced</span>}
-                        {s.deleted   > 0 && <span className="text-[#f04d4d]">✗ <strong>{s.deleted}</strong> deleted (lost)</span>}
-                        {s.untouched > 0 && <span className="text-[#5a6478]">… <strong>{s.untouched}</strong> untouched</span>}
-                        <span className="text-[#5a6478]">= {total} checked</span>
+                      <div className="flex gap-5 text-sm flex-wrap">
+                        {s.succeeded > 0 && <span className="text-success">✓ <strong>{s.succeeded}</strong> ok</span>}
+                        {s.badProxy  > 0 && <span className="text-warning">⟳ <strong>{s.badProxy}</strong> proxy replaced</span>}
+                        {s.deleted   > 0 && <span className="text-destructive">✗ <strong>{s.deleted}</strong> deleted (lost)</span>}
+                        {s.untouched > 0 && <span className="text-muted-foreground">… <strong>{s.untouched}</strong> untouched</span>}
+                        <span className="text-muted-foreground">= {total} checked</span>
                       </div>
                     </>
                   )}
 
                   {/* not done hint */}
                   {!done && (
-                    <p className="mt-2 text-[11px] text-[#5a6478] font-mono">
-                      Action running… click <strong className="text-[#f09a4d]">Enter Results</strong> when it finishes.
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Action running… click <strong className="text-warning">Enter Results</strong> when it finishes.
                     </p>
                   )}
 
                   {userNote && (
-                    <p className="mt-2 text-xs text-[#5a6478] font-mono border-t border-[#252b32] pt-2">{userNote}</p>
+                    <p className="mt-2 text-sm text-muted-foreground border-t border-border pt-2">{userNote}</p>
                   )}
                 </div>
               );
@@ -414,35 +414,43 @@ export default function DeliveryDetail() {
       {/* ── MODAL: New session (Phase 1 — In Progress) ──────────── */}
       {modal === 'new' && (
         <Drawer open={modal === 'new'} title="Start Session" onClose={() => setModal('none')}>
-          <p className="text-[#5a6478] text-xs font-mono mb-4 bg-[#1a1e22] border border-[#252b32] rounded px-3 py-2">
+          <p className="text-muted-foreground text-xs mb-4 bg-accent border border-border rounded px-3 py-2">
             Record that you started an action. You'll enter the results later when it finishes.
           </p>
           <div className="grid grid-cols-2 gap-3 mb-3">
             <DField label="Date Started" required>
-              <DInput type="date" value={date} onChange={e => setDate(e.target.value)} autoFocus />
+              <div className="kt-input w-full">
+                <DInput type="date" value={date} onChange={e => setDate(e.target.value)} autoFocus />
+              </div>
             </DField>
             <DField label="RDP ID">
-              <input value={serverId} onChange={e => setServerId(e.target.value)}
-                list="rdpListNew" placeholder="e.g. 178" className="field-input" />
+              <div className="kt-input w-full">
+                <input value={serverId} onChange={e => setServerId(e.target.value)}
+                  list="rdpListNew" placeholder="e.g. 178" className="w-full bg-transparent outline-none" />
+              </div>
               <datalist id="rdpListNew">
                 {[...new Set(deliveries.map(d => d.serverId).filter(Boolean))].map(r => <option key={r} value={r} />)}
               </datalist>
             </DField>
           </div>
           <DField label="Action" required>
-            <DSelect value={actionCode} onChange={e => setActionCode(e.target.value)}>
-              <option value="">— select action —</option>
-              {resolvedActions.map(a => (
-                <option key={a.code} value={a.code}>{a.code} — {a.label}</option>
-              ))}
-            </DSelect>
+            <div className="kt-input w-full">
+              <DSelect value={actionCode} onChange={e => setActionCode(e.target.value)}>
+                <option value="">— select action —</option>
+                {resolvedActions.map(a => (
+                  <option key={a.code} value={a.code}>{a.code} — {a.label}</option>
+                ))}
+              </DSelect>
+            </div>
           </DField>
           <DField label="Notes (optional)">
-            <DInput value={phase1Notes} onChange={e => setPhase1Notes(e.target.value)}
-              placeholder="e.g. Using proxy batch C, 500 boxes…" />
+            <div className="kt-input w-full">
+              <DInput value={phase1Notes} onChange={e => setPhase1Notes(e.target.value)}
+                placeholder="e.g. Using proxy batch C, 500 boxes…" />
+            </div>
           </DField>
-          <div className="mt-2 mb-1 text-[11px] font-mono text-[#5a6478] bg-[#2e1e0d]/40 border border-[#f09a4d]/20 rounded px-3 py-2">
-            ⏳ This session will be marked <strong className="text-[#f09a4d]">In Progress</strong> until you enter results.
+          <div className="mt-2 mb-1 text-xs text-muted-foreground bg-warning/10 border border-warning/20 rounded px-3 py-2">
+            ⏳ This session will be marked <strong className="text-warning">In Progress</strong> until you enter results.
           </div>
           <DFooter onCancel={() => setModal('none')} onSave={handleSaveNew} saving={saving} />
         </Drawer>
@@ -453,26 +461,34 @@ export default function DeliveryDetail() {
         <Drawer open={modal === 'edit' && !!target} title="Edit Session Info" onClose={() => setModal('none')}>
           <div className="grid grid-cols-2 gap-3 mb-3">
             <DField label="Date" required>
-              <DInput type="date" value={date} onChange={e => setDate(e.target.value)} autoFocus />
+              <div className="kt-input w-full">
+                <DInput type="date" value={date} onChange={e => setDate(e.target.value)} autoFocus />
+              </div>
             </DField>
             <DField label="RDP ID">
-              <input value={serverId} onChange={e => setServerId(e.target.value)}
-                list="rdpListEdit" placeholder="e.g. 178" className="field-input" />
+              <div className="kt-input w-full">
+                <input value={serverId} onChange={e => setServerId(e.target.value)}
+                  list="rdpListEdit" placeholder="e.g. 178" className="w-full bg-transparent outline-none" />
+              </div>
               <datalist id="rdpListEdit">
                 {[...new Set(deliveries.map(d => d.serverId).filter(Boolean))].map(r => <option key={r} value={r} />)}
               </datalist>
             </DField>
           </div>
           <DField label="Action" required>
-            <DSelect value={actionCode} onChange={e => setActionCode(e.target.value)}>
-              <option value="">— select action —</option>
-              {resolvedActions.map(a => (
-                <option key={a.code} value={a.code}>{a.code} — {a.label}</option>
-              ))}
-            </DSelect>
+            <div className="kt-input w-full">
+              <DSelect value={actionCode} onChange={e => setActionCode(e.target.value)}>
+                <option value="">— select action —</option>
+                {resolvedActions.map(a => (
+                  <option key={a.code} value={a.code}>{a.code} — {a.label}</option>
+                ))}
+              </DSelect>
+            </div>
           </DField>
           <DField label="Notes">
-            <DInput value={phase1Notes} onChange={e => setPhase1Notes(e.target.value)} />
+            <div className="kt-input w-full">
+              <DInput value={phase1Notes} onChange={e => setPhase1Notes(e.target.value)} />
+            </div>
           </DField>
           <DFooter onCancel={() => setModal('none')} onSave={handleSaveEdit} saving={saving} />
         </Drawer>
@@ -482,88 +498,96 @@ export default function DeliveryDetail() {
       {modal === 'results' && target && (
         <Drawer open={modal === 'results' && !!target} title="Enter Results" onClose={() => setModal('none')}>
           {/* session recap */}
-          <div className="bg-[#1a1e22] border border-[#252b32] rounded px-3 py-2 mb-4 text-xs font-mono">
-            <div className="flex gap-4 flex-wrap text-[#9aa5b4]">
+          <div className="bg-accent border border-border rounded px-3 py-2 mb-4 text-xs">
+            <div className="flex gap-4 flex-wrap text-muted-foreground">
               <span>{fmtDate(target.date)}</span>
               <span>{target.actionCode} — {getAction(target.actionCode)?.label.slice(0, 30)}</span>
               {target.serverId && <span>RDP {target.serverId}</span>}
             </div>
           </div>
 
-          <p className="text-[#5a6478] text-xs font-mono mb-1">
-            Active boxes: <strong className="text-[#4df0a0]">{delivery.currentBoxes}</strong>.
+          <p className="text-muted-foreground text-xs mb-1">
+            Active boxes: <strong className="text-success">{delivery.currentBoxes}</strong>.
             Enter what happened to each box you worked on.
           </p>
 
           <div className="grid grid-cols-2 gap-3 mt-3">
             {/* Succeeded */}
-            <div className="bg-[#0d2e1e]/40 border border-[#4df0a0]/20 rounded-lg p-3">
-              <div className="text-[10px] uppercase tracking-widest text-[#4df0a0] mb-2 font-medium">
+            <div className="bg-success/10 border border-success/20 rounded-lg p-3">
+              <div className="text-xs uppercase tracking-widest text-success mb-2 font-medium">
                 ✓ Succeeded
               </div>
-              <p className="text-[10px] text-[#5a6478] font-mono mb-2">
+              <p className="text-xs text-muted-foreground mb-2">
                 OK — kept as-is, working fine
               </p>
-              <DInput type="number" value={succeeded} onChange={e => setSucceeded(e.target.value)}
-                placeholder="0" min="0" autoFocus />
+              <div className="kt-input w-full bg-background border-success/30">
+                <DInput type="number" value={succeeded} onChange={e => setSucceeded(e.target.value)}
+                  placeholder="0" min="0" autoFocus />
+              </div>
             </div>
 
             {/* Bad proxy */}
-            <div className="bg-[#2e1e0d]/40 border border-[#f09a4d]/20 rounded-lg p-3">
-              <div className="text-[10px] uppercase tracking-widest text-[#f09a4d] mb-2 font-medium">
+            <div className="bg-warning/10 border border-warning/20 rounded-lg p-3">
+              <div className="text-xs uppercase tracking-widest text-warning mb-2 font-medium">
                 ⟳ Bad Proxy
               </div>
-              <p className="text-[10px] text-[#5a6478] font-mono mb-2">
+              <p className="text-xs text-muted-foreground mb-2">
                 Proxy replaced — box stays in the list
               </p>
-              <DInput type="number" value={badProxy} onChange={e => setBadProxy(e.target.value)}
-                placeholder="0" min="0" />
+              <div className="kt-input w-full bg-background border-warning/30">
+                <DInput type="number" value={badProxy} onChange={e => setBadProxy(e.target.value)}
+                  placeholder="0" min="0" />
+              </div>
             </div>
 
             {/* Deleted */}
-            <div className="bg-[#2e0d0d]/40 border border-[#f04d4d]/20 rounded-lg p-3">
-              <div className="text-[10px] uppercase tracking-widest text-[#f04d4d] mb-2 font-medium">
+            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3">
+              <div className="text-xs uppercase tracking-widest text-destructive mb-2 font-medium">
                 ✗ Deleted
               </div>
-              <p className="text-[10px] text-[#5a6478] font-mono mb-2">
+              <p className="text-xs text-muted-foreground mb-2">
                 Disabled / restricted / mail error — removed forever
               </p>
-              <DInput type="number" value={deleted} onChange={e => setDeleted(e.target.value)}
-                placeholder="0" min="0" />
+              <div className="kt-input w-full bg-background border-destructive/30">
+                <DInput type="number" value={deleted} onChange={e => setDeleted(e.target.value)}
+                  placeholder="0" min="0" />
+              </div>
             </div>
 
             {/* Untouched */}
-            <div className="bg-[#1a1e22] border border-[#252b32] rounded-lg p-3">
-              <div className="text-[10px] uppercase tracking-widest text-[#5a6478] mb-2 font-medium">
+            <div className="bg-accent border border-border rounded-lg p-3">
+              <div className="text-xs uppercase tracking-widest text-muted-foreground mb-2 font-medium">
                 … Untouched
               </div>
-              <p className="text-[10px] text-[#5a6478] font-mono mb-2">
+              <p className="text-xs text-muted-foreground mb-2">
                 Not processed this session
               </p>
-              <DInput type="number" value={untouched} onChange={e => setUntouched(e.target.value)}
-                placeholder="0" min="0" />
+              <div className="kt-input w-full bg-background">
+                <DInput type="number" value={untouched} onChange={e => setUntouched(e.target.value)}
+                  placeholder="0" min="0" />
+              </div>
             </div>
           </div>
 
           {/* live counter */}
           {sessionSum() > 0 && (
-            <div className="mt-3 text-xs font-mono px-3 py-2 rounded bg-[#131619] border border-[#252b32]">
+            <div className="mt-3 text-xs px-3 py-2 rounded kt-card">
               <div className="flex gap-4 flex-wrap">
-                <span className="text-[#e2e8f0]">Total this session: <strong>{sessionSum()}</strong></span>
+                <span className="text-foreground">Total this session: <strong>{sessionSum()}</strong></span>
                 {Number(deleted) > 0 && (
-                  <span className="text-[#f04d4d]">
+                  <span className="text-destructive">
                     Active after: {Math.max(0, delivery.currentBoxes - (Number(deleted) - (target.deleted ?? 0)))}
                     {' '}(−{Number(deleted) - (target.deleted ?? 0)} new deletions)
                   </span>
                 )}
               </div>
               {/* mini result bar preview */}
-              <div className="flex h-2 rounded-full overflow-hidden gap-px mt-2 bg-[#252b32]">
+              <div className="flex h-2 rounded-full overflow-hidden gap-px mt-2 bg-border">
                 {sessionSum() > 0 && <>
-                  <div className="bg-[#4df0a0]" style={{ width: `${Math.round(((Number(succeeded)||0)/sessionSum())*100)}%` }} />
-                  <div className="bg-[#f09a4d]" style={{ width: `${Math.round(((Number(badProxy)||0)/sessionSum())*100)}%` }} />
-                  <div className="bg-[#f04d4d]" style={{ width: `${Math.round(((Number(deleted)||0)/sessionSum())*100)}%` }} />
-                  <div className="bg-[#252b32]" style={{ width: `${Math.round(((Number(untouched)||0)/sessionSum())*100)}%` }} />
+                  <div className="bg-success" style={{ width: `${Math.round(((Number(succeeded)||0)/sessionSum())*100)}%` }} />
+                  <div className="bg-warning" style={{ width: `${Math.round(((Number(badProxy)||0)/sessionSum())*100)}%` }} />
+                  <div className="bg-destructive" style={{ width: `${Math.round(((Number(deleted)||0)/sessionSum())*100)}%` }} />
+                  <div className="bg-border" style={{ width: `${Math.round(((Number(untouched)||0)/sessionSum())*100)}%` }} />
                 </>}
               </div>
             </div>
@@ -571,8 +595,10 @@ export default function DeliveryDetail() {
 
           <div className="mt-3">
             <DField label="Notes (optional)">
-              <DInput value={resultNotes} onChange={e => setResultNotes(e.target.value)}
-                placeholder="e.g. Provider X proxies failing, switched to Y for next session…" />
+              <div className="kt-input w-full">
+                <DInput value={resultNotes} onChange={e => setResultNotes(e.target.value)}
+                  placeholder="e.g. Provider X proxies failing, switched to Y for next session…" />
+              </div>
             </DField>
           </div>
 
@@ -584,12 +610,16 @@ export default function DeliveryDetail() {
       {editMeta && (
         <Drawer open={editMeta} title="Edit Delivery" onClose={() => setEditMeta(false)}>
           <DField label="Delivery Name" required>
-            <DInput value={newName} onChange={e => setNewName(e.target.value)} autoFocus />
+            <div className="kt-input w-full">
+              <DInput value={newName} onChange={e => setNewName(e.target.value)} autoFocus />
+            </div>
           </DField>
           <DField label="Initial Total Mailboxes">
-            <DInput type="number" value={newTotal} onChange={e => setNewTotal(e.target.value)} min="1" />
+            <div className="kt-input w-full">
+              <DInput type="number" value={newTotal} onChange={e => setNewTotal(e.target.value)} min="1" />
+            </div>
           </DField>
-          <p className="text-[10px] text-[#5a6478] font-mono mt-1 mb-2">
+          <p className="text-xs text-muted-foreground mt-1 mb-2">
             Changing the total only affects percentage display.
           </p>
           <DFooter

@@ -43,59 +43,80 @@ export default function DeliveryRdpSummary() {
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center gap-2 text-xs font-mono text-[#5a6478] flex-wrap">
-        <button onClick={() => navigate('/deliveries')} className="hover:text-[#4df0a0] transition-colors">Deliveries</button>
-        <span>/</span>
-        <span className="text-[#e2e8f0]">{normalizedRdp === 'No RDP' ? 'No RDP' : `RDP ${normalizedRdp}`}</span>
-      </div>
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <nav className="flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">
+        <button onClick={() => navigate('/deliveries')} className="hover:text-primary transition-colors">Deliveries</button>
+        <span className="opacity-40">/</span>
+        <span className="text-foreground">{normalizedRdp === 'No RDP' ? 'External' : `Node Cluster ${normalizedRdp}`}</span>
+      </nav>
 
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="font-['Syne',sans-serif] font-bold text-[#e2e8f0] text-lg">
-              {normalizedRdp === 'No RDP' ? 'No RDP Summary' : `RDP ${normalizedRdp} Summary`}
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-muted/20 p-8 rounded-[2.5rem] border border-border/50 shadow-xl shadow-black/5">
+        <div className="space-y-1">
+          <div className="flex items-center gap-4">
+            <h1 className="text-3xl font-extrabold text-foreground tracking-tight">
+              {normalizedRdp === 'No RDP' ? 'External Summary' : `Cluster ${normalizedRdp}`}
             </h1>
-            <span className="text-[10px] bg-[#0d1e3e] text-[#4d8ff0] border border-[#1a3a6e] px-2 py-0.5 rounded font-mono">
-              {rdpDeliveries.length} deliver{rdpDeliveries.length !== 1 ? 'ies' : 'y'}
-            </span>
+            <div className="px-3 py-1 rounded-xl bg-primary/10 border border-primary/20 text-[10px] font-black uppercase text-primary tracking-widest">
+              {rdpDeliveries.length} Stream{rdpDeliveries.length !== 1 ? 's' : ''}
+            </div>
           </div>
-          <p className="text-xs text-[#5a6478] font-mono mt-1">
-            Combined view of all deliveries and sessions running on this device
+          <p className="text-sm font-bold text-muted-foreground uppercase tracking-[0.2em] opacity-60">
+            Holistic data aggregation Layer
           </p>
         </div>
-      </div>
+      </header>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { label: 'Active Boxes', val: currentBoxes.toLocaleString(), color: '#4df0a0' },
-          { label: 'Lost Boxes', val: lostBoxes.toLocaleString(), color: '#f04d4d' },
-          { label: 'Survival Rate', val: `${survival}%`, color: '#4d8ff0' },
-          { label: 'Sessions', val: sessions.length, color: '#f09a4d' },
+          { label: 'Operational Nodes', val: currentBoxes.toLocaleString(), theme: 'text-success bg-success/5 border-success/20', icon: '⚡' },
+          { label: 'Dropped Signals', val: lostBoxes.toLocaleString(), theme: 'text-destructive bg-destructive/5 border-destructive/20', icon: '📉' },
+          { label: 'Resilience Rate', val: `${survival}%`, theme: 'text-primary bg-primary/5 border-primary/20', icon: '🔋' },
+          { label: 'Pulse Cycles', val: sessions.length, theme: 'text-warning bg-warning/5 border-warning/20', icon: '🔄' },
         ].map(card => (
-          <div key={card.label} className="bg-[#131619] border border-[#252b32] rounded-lg px-4 py-3">
-            <div className="text-[10px] uppercase tracking-widest text-[#5a6478] mb-1">{card.label}</div>
-            <div className="text-xl font-bold font-mono" style={{ color: card.color }}>{card.val}</div>
+          <div key={card.label} className={`kt-card p-6 flex flex-col gap-4 border ${card.theme}`}>
+            <div className="flex items-center justify-between">
+               <span className="text-[10px] font-black uppercase tracking-widest opacity-60">{card.label}</span>
+               <span className="text-lg opacity-40">{card.icon}</span>
+            </div>
+            <div className="text-3xl font-black tracking-tight">{card.val}</div>
           </div>
         ))}
       </div>
 
       {/* --- BEGIN SHADOW UI INJECTION --- */}
       {FEATURES.IP_TRACKING && (
-        <div className="bg-[#131619] border border-[#252b32] rounded-lg p-4">
-          <div className="text-[11px] uppercase tracking-widest text-[#5a6478] mb-3 font-medium">Usage Summary</div>
-          <div className="flex gap-6 text-[12px] font-mono flex-wrap">
-            <span className="text-[#4df0a0]">Total Sent: {rdpTotalSent.toLocaleString()}</span>
-            <span className="text-[#4d8ff0]">Active Deliveries: {rdpDeliveries.filter(d => d.currentBoxes > 0).length}</span>
-            <span className="text-[#f09a4d]">Linked IPs: {rdpIps.length}</span>
+        <div className="kt-card py-6 px-8 bg-muted/10 border-border/50 flex flex-wrap items-center gap-12 rounded-[2rem]">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-2xl bg-success/10 flex items-center justify-center text-success">📤</div>
+            <div className="flex flex-col">
+              <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest opacity-50">Volume Sent</span>
+              <span className="text-sm font-black text-foreground">{rdpTotalSent.toLocaleString()}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">🛰️</div>
+            <div className="flex flex-col">
+              <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest opacity-50">Active Streams</span>
+              <span className="text-sm font-black text-foreground">{rdpDeliveries.filter(d => d.currentBoxes > 0).length}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-2xl bg-warning/10 flex items-center justify-center text-warning">🆔</div>
+            <div className="flex flex-col">
+              <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest opacity-50">Ingested IPs</span>
+              <span className="text-sm font-black text-foreground">{rdpIps.length}</span>
+            </div>
           </div>
         </div>
       )}
       {/* --- END SHADOW UI INJECTION --- */}
 
-      <div className="bg-[#131619] border border-[#252b32] rounded-lg p-4">
-        <div className="text-[11px] uppercase tracking-widest text-[#5a6478] mb-3 font-medium">Deliveries on this RDP</div>
-        <div className="space-y-3">
+      <section className="space-y-6">
+        <div className="flex items-center gap-4 ml-1">
+          <h4 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.3em] opacity-40">Active Data Streams</h4>
+          <div className="h-px flex-1 bg-gradient-to-r from-border/50 to-transparent" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {rdpDeliveries.map(delivery => {
             const lost = delivery.totalBoxes - delivery.currentBoxes;
             const survPct = delivery.totalBoxes > 0 ? Math.round((delivery.currentBoxes / delivery.totalBoxes) * 100) : 0;
@@ -103,61 +124,80 @@ export default function DeliveryRdpSummary() {
               <button
                 key={delivery.id}
                 onClick={() => navigate(`/deliveries/${delivery.id}`)}
-                className="w-full text-left bg-[#0d0f11] border border-[#252b32] rounded-lg p-4 hover:border-[#4df0a0]/50 transition-all"
+                className="kt-card p-6 bg-background border-border/50 hover:border-primary/50 hover:shadow-2xl hover:shadow-primary/5 hover:-translate-y-1 transition-all group text-left rounded-[2rem]"
               >
-                <div className="flex items-center justify-between gap-4 flex-wrap">
-                  <div>
-                    <div className="font-['Syne',sans-serif] font-bold text-[#e2e8f0] text-sm">{delivery.name}</div>
-                    <div className="text-[11px] font-mono text-[#5a6478] mt-1">
-                      {delivery.currentBoxes.toLocaleString()} active · {lost.toLocaleString()} lost · {survPct}% survival
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-foreground group-hover:text-primary transition-colors">{delivery.name}</span>
+                    <span className="text-[9px] font-bold text-muted-foreground uppercase opacity-40">{fmtDate(delivery.lastActivityAt.slice(0, 10))}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-bold text-muted-foreground uppercase opacity-40">Active</span>
+                      <span className="text-xs font-black text-success">{delivery.currentBoxes.toLocaleString()}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-bold text-muted-foreground uppercase opacity-40">Lost</span>
+                      <span className="text-xs font-black text-destructive">{lost.toLocaleString()}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-bold text-muted-foreground uppercase opacity-40">Survival</span>
+                      <span className="text-xs font-black text-primary">{survPct}%</span>
                     </div>
                   </div>
-                  <span className="text-[10px] font-mono text-[#5a6478]">{fmtDate(delivery.lastActivityAt.slice(0, 10))}</span>
                 </div>
               </button>
             );
           })}
         </div>
-      </div>
+      </section>
 
-      <div className="bg-[#131619] border border-[#252b32] rounded-lg overflow-hidden">
-        <div className="px-4 py-3 border-b border-[#252b32] text-[11px] uppercase tracking-widest text-[#5a6478] font-medium">
-          Session Timeline — {sessions.length} session{sessions.length !== 1 ? 's' : ''}
+      <section className="kt-card border-border/50 overflow-hidden rounded-[2.5rem] shadow-xl shadow-black/5">
+        <div className="px-8 py-5 border-b border-border/50 bg-muted/20 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+             <div className="w-8 h-8 rounded-xl bg-warning/10 flex items-center justify-center text-warning text-sm">📅</div>
+             <h4 className="text-[10px] font-black text-foreground uppercase tracking-widest">Protocol Sync Timeline</h4>
+          </div>
+          <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">
+            {sessions.length} recorded handshake{sessions.length !== 1 ? 's' : ''}
+          </span>
         </div>
-        <div className="overflow-auto max-h-[420px]">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[#252b32] sticky top-0 bg-[#131619]">
-                {['Date', 'Delivery', 'Action', 'Succeeded', 'Bad Proxy', 'Deleted', 'Untouched'].map(header => (
-                  <th key={header} className="text-left px-4 py-3 text-[10px] uppercase tracking-widest text-[#5a6478] font-medium whitespace-nowrap">
+        <div className="overflow-auto max-h-[500px]">
+          <table className="kt-table w-full">
+            <thead className="sticky top-0 bg-muted/90 backdrop-blur-md z-10 border-b border-border/50">
+              <tr>
+                {['Timestamp', 'Deployment', 'Operation', 'Success', 'Proxy Error', 'Destroyed', 'Idle'].map(header => (
+                  <th key={header} className="px-8 py-4 text-left text-[9px] font-black uppercase tracking-widest text-muted-foreground opacity-60 whitespace-nowrap">
                     {header}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-border/30">
               {sessions.map(session => {
                 const delivery = rdpDeliveries.find(item => item.id === session.deliveryId);
                 return (
                   <tr
                     key={session.id}
-                    className="border-b border-[#252b32] last:border-0 hover:bg-[#1a1e22] transition-colors cursor-pointer"
+                    className="hover:bg-muted/10 transition-colors cursor-pointer group"
                     onClick={() => navigate(`/deliveries/${session.deliveryId}`)}
                   >
-                    <td className="px-4 py-3 text-[#9aa5b4] font-mono">{fmtDate(session.date)}</td>
-                    <td className="px-4 py-3 text-[#e2e8f0] font-medium">{delivery?.name ?? 'Unknown'}</td>
-                    <td className="px-4 py-3 text-[#5a6478] font-mono">{session.actionCode}</td>
-                    <td className="px-4 py-3 text-[#4df0a0] font-mono">{session.succeeded}</td>
-                    <td className="px-4 py-3 text-[#f09a4d] font-mono">{session.badProxy}</td>
-                    <td className="px-4 py-3 text-[#f04d4d] font-mono">{session.deleted}</td>
-                    <td className="px-4 py-3 text-[#5a6478] font-mono">{session.untouched}</td>
+                    <td className="px-8 py-4 text-xs font-bold text-muted-foreground group-hover:text-foreground transition-colors">{fmtDate(session.date)}</td>
+                    <td className="px-8 py-4 text-xs font-black text-foreground">{delivery?.name ?? 'Unknown'}</td>
+                    <td className="px-8 py-4">
+                      <span className="px-2 py-1 rounded-lg bg-muted text-[10px] font-black uppercase tracking-widest opacity-60">{session.actionCode}</span>
+                    </td>
+                    <td className="px-8 py-4 text-xs font-black text-success">{session.succeeded}</td>
+                    <td className="px-8 py-4 text-xs font-black text-warning">{session.badProxy}</td>
+                    <td className="px-8 py-4 text-xs font-black text-destructive">{session.deleted}</td>
+                    <td className="px-8 py-4 text-xs font-bold text-muted-foreground/40">{session.untouched}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

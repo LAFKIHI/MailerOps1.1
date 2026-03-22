@@ -1,360 +1,276 @@
-function createHttpError(status, message, details) {
-  const error = new Error(message);
-  error.status = status;
-  if (details) error.details = details;
-  return error;
-}
+// =============================================================================
+// MailerOps - Server Bulk Actions
+// =============================================================================
+// Handles all bulk operations on servers: start, stop, pause, resume,
+// update limits, change RDP, tag management, bulk delete, bulk warmup.
+// =============================================================================
 
-const ACTIONS = {
-  updateSendPerDay: 'updateSendPerDay',
-  change_daily_limit: 'change_daily_limit',
-  change_rdp: 'change_rdp',
-  startServers: 'startServers',
-  stopServers: 'stopServers',
-  deleteServers: 'deleteServers',
-  updateStatus: 'updateStatus',
-  assignTag: 'assignTag',
-  // Immediate status-toggle actions
-  stop: 'stop',
-  start: 'start',
-  pause: 'pause',
-  resume: 'resume',
-};
+const { cascadeDeleteServer } = require('./cascadeDelete');
 
-const VALID_STATUSES = new Set(['active', 'paused', 'banned']);
-
-function normalizeServerIds(serverIds) {
-  if (!Array.isArray(serverIds)) {
-    throw createHttpError(400, 'serverIds must be an array');
-  }
-
-  const normalized = [...new Set(serverIds.map(id => String(id || '').trim()).filter(Boolean))];
-
-  if (normalized.length === 0) {
-    throw createHttpError(400, 'At least one server must be selected');
-  }
-
-  return normalized;
-}
-
-function assertNoUnexpectedValue(action, value) {
-  if (value !== undefined && value !== null && value !== '') {
-    throw createHttpError(400, `${action} does not accept a value`);
+class HttpError extends Error {
+  constructor(status, message, details = null) {
+    super(message);
+    this.status = status;
+    this.details = details;
+    this.name = 'HttpError';
   }
 }
 
-function validateActionPayload(action, value) {
+// ─── Main Bulk Action Handler ───────────────────────────────────────────────
+
+async function handleBulkAction(store, userId, payload) {
+  const { action, serverIds, value } = payload;
+
+  // Validate inputs
+  if (!action || typeof action !== 'string') {
+    throw new HttpError(400, 'action is required and must be a string');
+  }
+
+  if (!Array.isArray(serverIds) || serverIds.length === 0) {
+    throw new HttpError(400, 'serverIds must be a non-empty array');
+  }
+
+  // Verify all servers exist
+  const servers = [];
+  for (const id of serverIds) {
+    const server = await store.get('servers', userId, id);
+    if (server) servers.push(server);
+  }
+
+  if (servers.length !== serverIds.length) {
+    const foundIds = new Set(servers.map(s => s.id));
+    const missingIds = serverIds.filter(id => !foundIds.has(id));
+    throw new HttpError(404, 'Some selected servers were not found', { missingIds });
+  }
+
+  const updatedAt = new Date().toISOString();
+
+  // Dispatch action
   switch (action) {
-    case ACTIONS.updateSendPerDay: {
-      const parsed = Number(value);
-      if (!Number.isInteger(parsed) || parsed < 0 || parsed > 1000000) {
-        throw createHttpError(400, 'sendPerDay must be an integer between 0 and 1000000');
+    case 'startServers':
+    case 'start':
+      return updateServersFields(store, userId, serverIds, {
+        status: 'active',
+        runtimeStatus: 'running'
+      }, updatedAt);
+
+    case 'stopServers':
+    case 'stop':
+      return updateServersFields(store, userId, serverIds, {
+        runtimeStatus: 'stopped'
+      }, updatedAt);
+
+    case 'pause':
+      return updateServersFields(store, userId, serverIds, {
+        status: 'paused',
+        pauseReason: value || 'Paused by user'
+      }, updatedAt);
+
+    case 'resume':
+      return updateServersFields(store, userId, serverIds, {
+        status: 'active',
+        runtimeStatus: 'running',
+        pauseReason: null
+      }, updatedAt);
+
+    case 'updateSendPerDay':
+    case 'change_daily_limit':
+      if (value === undefined || !Number.isInteger(Number(value)) || Number(value) < 0) {
+        throw new HttpError(400, 'Value must be a non-negative integer');
       }
-      return parsed;
-    }
-    case ACTIONS.change_daily_limit: {
-      const parsed = Number(value);
-      if (!Number.isInteger(parsed) || parsed < 0 || parsed > 1000000) {
-        throw createHttpError(400, 'dailyLimit must be an integer between 0 and 1000000');
+      return updateServersFields(store, userId, serverIds, {
+        sendPerDay: Number(value),
+        dailyLimit: Number(value)
+      }, updatedAt);
+
+    case 'change_rdp':
+      if (!value || typeof value !== 'string') {
+        throw new HttpError(400, 'RDP value must be a non-empty string');
       }
-      return parsed;
-    }
-    case ACTIONS.change_rdp: {
-      const parsed = String(value || '').trim();
-      if (!parsed || parsed.length > 100) {
-        throw createHttpError(400, 'rdp must be between 1 and 100 characters');
+      return updateServersFields(store, userId, serverIds, {
+        rdp: value,
+        group: value
+      }, updatedAt);
+
+    case 'assignTag':
+      if (!value || typeof value !== 'string') {
+        throw new HttpError(400, 'Tag value must be a non-empty string');
       }
-      return parsed;
-    }
-    case ACTIONS.startServers:
-    case ACTIONS.stopServers:
-    case ACTIONS.deleteServers:
-    case ACTIONS.stop:
-    case ACTIONS.start:
-    case ACTIONS.pause:
-    case ACTIONS.resume: {
-      assertNoUnexpectedValue(action, value);
-      return undefined;
-    }
-    case ACTIONS.updateStatus: {
-      const parsed = String(value || '').trim();
-      if (!VALID_STATUSES.has(parsed)) {
-        throw createHttpError(400, 'status must be one of: active, paused, banned');
+      return assignTagToServers(store, userId, serverIds, value, updatedAt);
+
+    case 'removeTag':
+      if (!value || typeof value !== 'string') {
+        throw new HttpError(400, 'Tag value must be a non-empty string');
       }
-      return parsed;
-    }
-    case ACTIONS.assignTag: {
-      const parsed = String(value || '').trim();
-      if (!parsed || parsed.length > 40 || !/^[A-Za-z0-9 _-]+$/.test(parsed)) {
-        throw createHttpError(400, 'tag must be 1-40 characters and use letters, numbers, spaces, "_" or "-"');
+      return removeTagFromServers(store, userId, serverIds, value, updatedAt);
+
+    case 'updateStatus':
+      if (!['active', 'paused', 'stopped'].includes(value)) {
+        throw new HttpError(400, 'Invalid status value. Must be: active, paused, or stopped');
       }
-      return parsed;
-    }
+      return updateServersFields(store, userId, serverIds, {
+        status: value
+      }, updatedAt);
+
+    case 'deleteServers':
+    case 'delete':
+      return deleteServersWithCascade(store, userId, serverIds);
+
     default:
-      throw createHttpError(400, 'Invalid bulk action');
+      throw new HttpError(400, `Unknown action: ${action}`);
   }
 }
 
-async function ensureServersExist(serversCollection, userId, serverIds, session) {
-  const rows = await serversCollection
-    .find(
-      { userId, _id: { $in: serverIds } },
-      { session, projection: { _id: 1 } }
-    )
-    .toArray();
+// ─── Action Implementations ─────────────────────────────────────────────────
 
-  const foundIds = new Set(rows.map(row => String(row._id)));
-  const missingIds = serverIds.filter(id => !foundIds.has(id));
+async function updateServersFields(store, userId, serverIds, fields, updatedAt) {
+  let modifiedCount = 0;
 
-  if (missingIds.length > 0) {
-    throw createHttpError(404, 'Some selected servers were not found', { missingIds });
+  for (const id of serverIds) {
+    const server = await store.get('servers', userId, id);
+    if (server) {
+      await store.update('servers', userId, id, { ...fields, updatedAt });
+      modifiedCount++;
+    }
   }
-}
-
-async function executeDeleteFlow(db, userId, serverIds, session, now) {
-  const domainsCollection = db.collection('domains');
-  const ipsCollection = db.collection('ips');
-  const warmupsCollection = db.collection('warmups');
-  const reputationCollection = db.collection('reputation');
-  const serversCollection = db.collection('servers');
-
-  const domains = await domainsCollection
-    .find(
-      { userId, serverId: { $in: serverIds } },
-      { session, projection: { _id: 1 } }
-    )
-    .toArray();
-  const domainIds = domains.map(domain => String(domain._id));
-
-  const ips = domainIds.length > 0
-    ? await ipsCollection
-      .find(
-        { userId, domainId: { $in: domainIds } },
-        { session, projection: { _id: 1 } }
-      )
-      .toArray()
-    : [];
-  const ipIds = ips.map(ip => String(ip._id));
-
-  if (ipIds.length > 0) {
-    await warmupsCollection.bulkWrite([
-      {
-        deleteMany: {
-          filter: { userId, ipId: { $in: ipIds } },
-        },
-      },
-    ], { session, ordered: true });
-  }
-
-  if (domainIds.length > 0) {
-    await reputationCollection.bulkWrite([
-      {
-        deleteMany: {
-          filter: { userId, domainId: { $in: domainIds } },
-        },
-      },
-    ], { session, ordered: true });
-  }
-
-  if (domainIds.length > 0) {
-    await ipsCollection.bulkWrite([
-      {
-        deleteMany: {
-          filter: { userId, domainId: { $in: domainIds } },
-        },
-      },
-    ], { session, ordered: true });
-  }
-
-  await db.collection('domains').bulkWrite([
-    {
-      deleteMany: {
-        filter: { userId, serverId: { $in: serverIds } },
-      },
-    },
-  ], { session, ordered: true });
-
-  const serverDeleteResult = await serversCollection.bulkWrite(
-    serverIds.map(serverId => ({
-      deleteOne: {
-        filter: { _id: serverId, userId },
-      },
-    })),
-    { session, ordered: true }
-  );
 
   return {
-    action: ACTIONS.deleteServers,
+    action: 'updateStatus',
     matchedCount: serverIds.length,
-    modifiedCount: serverDeleteResult.deletedCount ?? serverIds.length,
-    deletedCount: serverDeleteResult.deletedCount ?? serverIds.length,
-    updatedAt: now,
+    modifiedCount,
+    updatedAt
   };
 }
 
-async function executeServerBulkAction(db, userId, payload, session) {
-  const action = String(payload?.action || '').trim();
-  const serverIds = normalizeServerIds(payload?.serverIds);
-  const value = validateActionPayload(action, payload?.value);
-  const serversCollection = db.collection('servers');
-  const now = new Date().toISOString();
+async function assignTagToServers(store, userId, serverIds, tag, updatedAt) {
+  let modifiedCount = 0;
 
-  await ensureServersExist(serversCollection, userId, serverIds, session);
-
-  if (action === ACTIONS.deleteServers) {
-    return executeDeleteFlow(db, userId, serverIds, session, now);
+  for (const id of serverIds) {
+    const server = await store.get('servers', userId, id);
+    if (server) {
+      const currentTags = Array.isArray(server.tags) ? server.tags : [];
+      const tags = [...new Set([...currentTags, tag])];
+      await store.update('servers', userId, id, { tags, updatedAt });
+      modifiedCount++;
+    }
   }
-
-  let operation;
-
-  if (action === ACTIONS.updateSendPerDay) {
-    operation = {
-      updateMany: {
-        filter: { userId, _id: { $in: serverIds } },
-        update: {
-          $set: {
-            sendPerDay: value,
-            sentPerDay: value,
-            updatedAt: now,
-          },
-        },
-      },
-    };
-  }
-
-  if (action === ACTIONS.change_daily_limit) {
-    operation = {
-      updateMany: {
-        filter: { userId, _id: { $in: serverIds } },
-        update: {
-          $set: {
-            dailyLimit: value,
-            sendPerDay: value,
-            updatedAt: now,
-          },
-        },
-      },
-    };
-  }
-
-  if (action === ACTIONS.change_rdp) {
-    operation = {
-      updateMany: {
-        filter: { userId, _id: { $in: serverIds } },
-        update: {
-          $set: {
-            rdp: value,
-            group: value,
-            updatedAt: now,
-          },
-        },
-      },
-    };
-  }
-
-  if (action === ACTIONS.startServers || action === ACTIONS.start) {
-    operation = {
-      updateMany: {
-        filter: { userId, _id: { $in: serverIds } },
-        update: {
-          $set: {
-            runtimeStatus: 'running',
-            status: 'active',
-            updatedAt: now,
-          },
-        },
-      },
-    };
-  }
-
-  if (action === ACTIONS.stopServers || action === ACTIONS.stop) {
-    operation = {
-      updateMany: {
-        filter: { userId, _id: { $in: serverIds } },
-        update: {
-          $set: {
-            runtimeStatus: 'stopped',
-            updatedAt: now,
-          },
-        },
-      },
-    };
-  }
-
-  if (action === ACTIONS.pause) {
-    operation = {
-      updateMany: {
-        filter: { userId, _id: { $in: serverIds } },
-        update: {
-          $set: {
-            status: 'paused',
-            updatedAt: now,
-          },
-        },
-      },
-    };
-  }
-
-  if (action === ACTIONS.resume) {
-    operation = {
-      updateMany: {
-        filter: { userId, _id: { $in: serverIds } },
-        update: {
-          $set: {
-            status: 'active',
-            runtimeStatus: 'running',
-            updatedAt: now,
-          },
-        },
-      },
-    };
-  }
-
-  if (action === ACTIONS.updateStatus) {
-    operation = {
-      updateMany: {
-        filter: { userId, _id: { $in: serverIds } },
-        update: {
-          $set: {
-            status: value,
-            updatedAt: now,
-          },
-        },
-      },
-    };
-  }
-
-  if (action === ACTIONS.assignTag) {
-    operation = {
-      updateMany: {
-        filter: { userId, _id: { $in: serverIds } },
-        update: {
-          $addToSet: {
-            tags: value,
-          },
-          $set: {
-            updatedAt: now,
-          },
-        },
-      },
-    };
-  }
-
-  const result = await serversCollection.bulkWrite([operation], { session, ordered: true });
 
   return {
-    action,
-    matchedCount: result.matchedCount ?? serverIds.length,
-    modifiedCount: result.modifiedCount ?? 0,
-    deletedCount: 0,
-    updatedAt: now,
+    action: 'assignTag',
+    matchedCount: serverIds.length,
+    modifiedCount,
+    updatedAt
   };
 }
+
+async function removeTagFromServers(store, userId, serverIds, tag, updatedAt) {
+  let modifiedCount = 0;
+
+  for (const id of serverIds) {
+    const server = await store.get('servers', userId, id);
+    if (server) {
+      const currentTags = Array.isArray(server.tags) ? server.tags : [];
+      const tags = currentTags.filter(t => t !== tag);
+      await store.update('servers', userId, id, { tags, updatedAt });
+      modifiedCount++;
+    }
+  }
+
+  return {
+    action: 'removeTag',
+    matchedCount: serverIds.length,
+    modifiedCount,
+    updatedAt
+  };
+}
+
+async function deleteServersWithCascade(store, userId, serverIds) {
+  let deletedCount = 0;
+
+  for (const serverId of serverIds) {
+    await cascadeDeleteServer(store, userId, serverId);
+    deletedCount++;
+  }
+
+  return {
+    action: 'deleteServers',
+    matchedCount: serverIds.length,
+    modifiedCount: serverIds.length,
+    deletedCount
+  };
+}
+
+// ─── Bulk Warmup ────────────────────────────────────────────────────────────
+
+/**
+ * Create warmup records for all IPs under the given servers.
+ * Process:
+ *   1. Find all domains for the given servers
+ *   2. Find all IPs for those domains
+ *   3. Create or update warmup records for each IP on the specified date
+ */
+async function handleBulkWarmup(store, userId, payload) {
+  const { serverIds, count, date } = payload;
+
+  if (!Array.isArray(serverIds) || serverIds.length === 0) {
+    throw new HttpError(400, 'serverIds must be a non-empty array');
+  }
+
+  if (!count || !Number.isInteger(Number(count)) || Number(count) < 0) {
+    throw new HttpError(400, 'count must be a non-negative integer');
+  }
+
+  if (!date || typeof date !== 'string') {
+    throw new HttpError(400, 'date is required (YYYY-MM-DD)');
+  }
+
+  const serverIdSet = new Set(serverIds);
+  let createdCount = 0;
+  let updatedCount = 0;
+
+  // Get all domains for these servers
+  const allDomains = await store.list('domains', userId);
+  const domains = allDomains.filter(d => serverIdSet.has(d.serverId));
+
+  // Get all IPs for those domains
+  const domainIdSet = new Set(domains.map(d => d.id));
+  const allIPs = await store.list('ips', userId);
+  const ips = allIPs.filter(ip => domainIdSet.has(ip.domainId));
+
+  // Get existing warmups to avoid duplicates
+  const existingWarmups = await store.list('warmups', userId);
+
+  for (const ip of ips) {
+    // Check if a warmup already exists for this IP on this date
+    const existing = existingWarmups.find(w => w.ipId === ip.id && w.date === date);
+
+    if (existing) {
+      // Update existing warmup
+      await store.update('warmups', userId, existing.id, {
+        sent: Number(count),
+        status: 'scheduled'
+      });
+      updatedCount++;
+    } else {
+      // Create new warmup
+      await store.create('warmups', userId, {
+        ipId: ip.id,
+        domainId: ip.domainId,
+        date,
+        sent: Number(count),
+        status: 'scheduled'
+      });
+      createdCount++;
+    }
+  }
+
+  return { success: true, processedIPs: ips.length, createdCount, updatedCount };
+}
+
+// ─── Exports ────────────────────────────────────────────────────────────────
 
 module.exports = {
-  ACTIONS,
-  createHttpError,
-  executeServerBulkAction,
-  normalizeServerIds,
-  validateActionPayload,
+  handleBulkAction,
+  handleBulkWarmup,
+  HttpError
 };

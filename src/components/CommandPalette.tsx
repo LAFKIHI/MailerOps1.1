@@ -62,16 +62,18 @@ export default function CommandPalette() {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[10vh] bg-black/50">
-      <div className="w-full max-w-lg rounded-xl bg-[#131619] border border-[#252b32] shadow-2xl overflow-hidden"
-        onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center px-4 py-3 border-b border-[#252b32]">
-          <span className="text-[#5a6478] mr-3">🔍</span>
+    <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh] px-6 bg-background/40 backdrop-blur-sm animate-in fade-in duration-300">
+      <div 
+        className="w-full max-w-xl rounded-[2.5rem] bg-background border border-border shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 shadow-black/20"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-4 px-8 py-6 border-b border-border bg-muted/20">
+          <span className="text-xl opacity-40">🔍</span>
           <input
             ref={inputRef}
             type="text"
-            className="flex-1 bg-transparent border-none outline-none text-[#e2e8f0] placeholder-[#5a6478] font-mono text-sm"
-            placeholder="Search commands..."
+            className="flex-1 bg-transparent border-none outline-none text-foreground font-bold placeholder:text-muted-foreground/30 text-base"
+            placeholder="Summon operational command..."
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -79,11 +81,17 @@ export default function CommandPalette() {
             }}
             onKeyDown={handleKeyDown}
           />
-          <button onClick={() => setOpen(false)} className="text-[#5a6478] hover:text-[#e2e8f0] text-xs font-mono ml-2 border border-[#252b32] rounded px-1.5 py-0.5">ESC</button>
+          <div className="flex items-center gap-2">
+             <kbd className="h-6 px-1.5 rounded-lg border border-border bg-background text-[10px] font-black text-muted-foreground flex items-center justify-center shadow-sm">ESC</kbd>
+             <button onClick={() => setOpen(false)} className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all">✕</button>
+          </div>
         </div>
-        <div className="max-h-64 overflow-y-auto p-2">
+        <div className="max-h-[400px] overflow-y-auto p-4 space-y-1">
           {filtered.length === 0 ? (
-            <div className="text-center py-4 text-[#5a6478] text-sm font-mono">No commands found.</div>
+            <div className="text-center py-12 space-y-2 opacity-40">
+               <div className="text-2xl">🛰️</div>
+               <div className="text-xs font-black uppercase tracking-widest text-muted-foreground">No matching protocols found</div>
+            </div>
           ) : (
             filtered.map((cmd, i) => (
               <div
@@ -92,14 +100,27 @@ export default function CommandPalette() {
                   cmd.action();
                   setOpen(false);
                 }}
-                className={`px-3 py-2 rounded-md cursor-pointer text-sm font-mono flex items-center transition-colors
-                  ${i === selectedIndex ? 'bg-[#1a1e22] text-[#4df0a0]' : 'text-[#9aa5b4] hover:bg-[#1a1e22] hover:text-[#e2e8f0]'}`}
+                className={`px-6 py-4 rounded-2xl cursor-pointer text-sm font-bold flex items-center justify-between transition-all group
+                  ${i === selectedIndex 
+                    ? 'bg-primary text-white shadow-xl shadow-primary/20 scale-[1.01]' 
+                    : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'}`}
                 onMouseEnter={() => setSelectedIndex(i)}
               >
-                {cmd.label}
+                <span>{cmd.label}</span>
+                {i === selectedIndex && <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Execute ↵</span>}
               </div>
             ))
           )}
+        </div>
+        <div className="px-8 py-3 bg-muted/10 border-t border-border/30 flex items-center justify-between">
+           <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest opacity-40">Neural Link v1.1</span>
+           <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1.5 grayscale opacity-40">
+                 <kbd className="h-4 px-1 rounded-md border border-border text-[8px] font-bold">↑</kbd>
+                 <kbd className="h-4 px-1 rounded-md border border-border text-[8px] font-bold">↓</kbd>
+                 <span className="text-[8px] font-bold uppercase">Navigate</span>
+              </div>
+           </div>
         </div>
       </div>
     </div>

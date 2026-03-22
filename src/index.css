@@ -1,11 +1,176 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Step 8 - Visual Cleanup (Safe): Apply subtle card styling */
-.bg-\[\#131619\].border.border-\[\#252b32\] {
-  background: rgba(255, 255, 255, 0.03) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-radius: 8px !important;
-  box-shadow: none !important;
+@layer base {
+  :root {
+    /* New Design Tokens (HSL) */
+    --background: 222 25% 8%;
+    --surface: 222 22% 11%;
+    --surface-elevated: 222 20% 14%;
+    --surface-border: 222 18% 20%;
+    --primary: 217 90% 65%;
+    --primary-muted: 217 60% 40%;
+    --muted: 222 15% 45%;
+    --muted-foreground: 222 12% 60%;
+    --foreground: 220 20% 92%;
+    --foreground-muted: 220 15% 65%;
+    --success: 152 60% 45%;
+    --success-bg: 152 40% 12%;
+    --warning: 38 90% 55%;
+    --warning-bg: 38 60% 12%;
+    --danger: 0 72% 58%;
+    --danger-bg: 0 50% 12%;
+    --info: 217 90% 65%;
+    --info-bg: 217 50% 12%;
+    --border: 222 18% 20%;
+    --ring: 217 90% 65%;
+
+    /* Legacy Variable Mappings (for compatibility) */
+    --bg: hsl(var(--background));
+    --surface2: hsl(var(--surface-elevated));
+    --text1: hsl(var(--foreground));
+    --text2: hsl(var(--foreground-muted));
+    --text3: hsl(var(--muted));
+    --radius: 12px;
+    --radius-sm: 8px;
+    --radius-lg: 16px;
+    --sidebar-bg: hsl(var(--surface));
+    --sidebar-text: hsl(var(--muted));
+    --sidebar-active: hsl(var(--primary));
+    --sidebar-active-bg: hsla(var(--primary) / 0.12);
+  }
+
+  .dark {
+    /* Ensures dark class still works if applied to body */
+    --background: 222 25% 8%;
+    --foreground: 220 20% 92%;
+  }
+
+  * { box-sizing: border-box; }
+
+  html {
+    font-size: 14px;
+    font-family: 'DM Sans', 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+
+  .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--surface-border)); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted)); }
+}
+
+@layer components {
+  /* --- NEW COMPONENT CLASSES --- */
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer;
+    color: hsl(var(--foreground-muted));
+  }
+  .nav-item:hover {
+    background-color: hsl(var(--surface-elevated));
+    color: hsl(var(--foreground));
+  }
+  .nav-item.active {
+    background-color: hsl(217 90% 65% / 0.12);
+    color: hsl(var(--primary));
+  }
+
+  .card {
+    background-color: hsl(var(--surface));
+    border: 1px solid hsl(var(--border));
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  }
+
+  .card-elevated {
+    background-color: hsl(var(--surface-elevated));
+    border: 1px solid hsl(var(--border));
+    border-radius: 12px;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150 active:scale-95;
+    background-color: hsl(var(--primary));
+    color: hsl(222 25% 8%);
+  }
+  .btn-primary:hover { background-color: hsl(217 90% 72%); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-ghost, .btn-secondary {
+    @apply inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 active:scale-95;
+    color: hsl(var(--foreground-muted));
+  }
+  .btn-ghost:hover, .btn-secondary:hover {
+    background-color: hsl(var(--surface-elevated));
+    color: hsl(var(--foreground));
+  }
+
+  .input, .field-input, input, textarea, select {
+    @apply w-full px-3 py-2 rounded-lg text-sm transition-all duration-150 outline-none;
+    background-color: hsl(var(--surface-elevated)) !important;
+    border: 1px solid hsl(var(--border));
+    color: hsl(var(--foreground)) !important;
+  }
+  .input:focus, .field-input:focus, input:focus, textarea:focus, select:focus {
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 2px hsl(217 90% 65% / 0.15);
+  }
+
+  /* Fix for autofill white background */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill,
+  textarea:-webkit-autofill:hover,
+  textarea:-webkit-autofill:focus,
+  select:-webkit-autofill,
+  select:-webkit-autofill:hover,
+  select:-webkit-autofill:focus {
+    -webkit-text-fill-color: hsl(var(--foreground)) !important;
+    -webkit-box-shadow: 0 0 0px 1000px hsl(var(--surface-elevated)) inset !important;
+    transition: background-color 5000s ease-in-out 0s;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border;
+  }
+  .badge-active { background-color: hsl(var(--success-bg)); color: hsl(var(--success)); border-color: hsla(var(--success) / 0.25); }
+  .badge-paused { background-color: hsl(var(--warning-bg)); color: hsl(var(--warning)); border-color: hsla(var(--warning) / 0.25); }
+  .badge-stopped { background-color: hsl(var(--danger-bg)); color: hsl(var(--danger)); border-color: hsla(var(--danger) / 0.25); }
+
+  /* --- LEGACY COMPATIBILITY CLASSES (.kt-) --- */
+  .kt-card { @apply card p-4; }
+  .kt-btn { @apply btn-ghost; }
+  .kt-btn-primary { @apply btn-primary; }
+  .kt-btn-outline { @apply border border-border; }
+  .kt-btn-outline:hover { background-color: hsl(var(--surface-elevated)); }
+  .kt-input { @apply input; }
+  
+  .kt-table {
+    @apply w-full text-left border-collapse;
+  }
+  .kt-table th {
+    @apply px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-muted border-b border-border;
+  }
+  .kt-table td {
+    @apply px-4 py-3 text-sm border-b border-border;
+  }
+
+  .progress-bar {
+    @apply h-1.5 rounded-full overflow-hidden;
+    background-color: hsl(var(--surface-border));
+  }
+  .progress-fill {
+    @apply h-full rounded-full transition-all duration-300;
+  }
 }

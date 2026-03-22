@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -127,13 +128,6 @@ export default function ServerDetail() {
     runPmFetch(serverDomains, pmToken);
   }, [pmConnected, pmToken, serverId, serverDomains.length]);
 
-  if (!server) return (
-    <div className="text-center py-20">
-      <p className="text-[#5a6478] font-mono text-sm">Server not found.</p>
-      <button onClick={() => navigate('/servers')} className="mt-4 text-[#4df0a0] text-sm font-mono hover:underline">← Back to Servers</button>
-    </div>
-  );
-
   // ── helpers ──────────────────────────────────────────────────
   const getIP     = (domainId: string) => ips.find(ip => ip.domainId === domainId);
   const sentToday = (ipId: string) => {
@@ -141,9 +135,37 @@ export default function ServerDetail() {
     return warmups.filter(w => w.ipId === ipId && w.date === today).reduce((s, w) => s + w.sent, 0);
   };
   const latestRep = (domainId: string): Reputation | null => {
-    const recs = reputation.filter(r => r.domainId === domainId);
+    const recs = reputation.filter(
+      r => r.domainId === domainId && typeof r.date === 'string' && r.date.length > 0
+    );
     return recs.sort((a, b) => b.date.localeCompare(a.date))[0] ?? null;
   };
+
+  // ── callbacks moved to top level to avoid hook order errors ──
+  const onSaveRep = useCallback(async (date: string, dRep: string, iRep: string, spamRate: string) => {
+    if (!activeDomain) return;
+    try {
+      await ctx.upsertReputation(activeDomain.id, date, dRep, iRep, spamRate);
+      // also update quick fields on domain doc
+      await ctx.updateDomain(activeDomain.id, { domainRep: dRep, ipRep: iRep, spamRate });
+      showToast('Postmaster data saved ✓');
+    } catch { showToast('Error saving', true); }
+  }, [activeDomain?.id, ctx, showToast]);
+
+  const onSaveWarmup = useCallback(async (date: string, sent: number) => {
+    if (!activeIP) return;
+    try {
+      await ctx.upsertWarmup(activeIP.id, sent, date);
+      showToast('Warmup logged ✓');
+    } catch { showToast('Error saving', true); }
+  }, [activeIP?.id, ctx, showToast]);
+
+  if (!server) return (
+    <div className="text-center py-20">
+      <p className="text-[#5a6478] font-mono text-sm">Server not found.</p>
+      <button onClick={() => navigate('/servers')} className="mt-4 text-[#4df0a0] text-sm font-mono hover:underline">← Back to Servers</button>
+    </div>
+  );
 
   // ── mutations ─────────────────────────────────────────────────
   const handleImport = async () => {
@@ -157,6 +179,8 @@ export default function ServerDetail() {
   const handleAddDomain = async () => {
     if (!newDomain.trim() || !serverId) return;
     setSaving(true);
+    const existingDomain = serverDomains.find(d => d.domain.toLowerCase() === newDomain.trim().toLowerCase() && !d.archived);
+    if (existingDomain) { showToast('Domain already exists on this server', true); setSaving(false); return; }
     try {
       await ctx.importDomains(serverId, `${newDomain.trim()};${newIP.trim() || '0.0.0.0'}`);
       showToast('Domain added ✓'); setAddDomOpen(false); setNewDomain(''); setNewIP('');
@@ -232,19 +256,19 @@ export default function ServerDetail() {
   const goDomain   = ()          => { setPanel('domain'); setActiveIP(null); };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* breadcrumb */}
-      <div className="flex items-center gap-2 text-xs font-mono text-[#5a6478] flex-wrap">
-        <button onClick={() => navigate('/servers')} className="hover:text-[#4df0a0] transition-colors">Servers</button>
-        <span>/</span>
-        <button onClick={goServer} className={`transition-colors ${panel === 'server' ? 'text-[#e2e8f0]' : 'hover:text-[#4df0a0]'}`}>{server.name}</button>
+      <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+        <button onClick={() => navigate('/servers')} className="hover:text-primary transition-colors">Servers</button>
+        <span className="opacity-50">/</span>
+        <button onClick={goServer} className={`transition-colors ${panel === 'server' ? 'text-foreground font-semibold' : 'hover:text-primary'}`}>{server.name}</button>
         {activeDomain && <>
-          <span>/</span>
-          <button onClick={goDomain} className={`transition-colors ${panel === 'domain' ? 'text-[#e2e8f0]' : 'hover:text-[#4df0a0]'}`}>{activeDomain.domain}</button>
+          <span className="opacity-50">/</span>
+          <button onClick={goDomain} className={`transition-colors ${panel === 'domain' ? 'text-foreground font-semibold' : 'hover:text-primary'}`}>{activeDomain.domain}</button>
         </>}
         {activeIP && <>
-          <span>/</span>
-          <span className="text-[#4d8ff0]">{activeIP.ip}</span>
+          <span className="opacity-50">/</span>
+          <span className="text-primary font-semibold">{activeIP.ip}</span>
         </>}
       </div>
 
@@ -253,29 +277,29 @@ export default function ServerDetail() {
         <>
           {/* header row */}
           <div className="flex items-center gap-3 flex-wrap">
-            <h2 className="font-bold text-[#e2e8f0] text-base flex items-center gap-2">
-              <span className="text-[#4df0a0]">🖥</span> {server.name}
+            <h2 className="font-bold text-foreground text-xl flex items-center gap-2">
+              <span className="text-success">🖥</span> {server.name}
             </h2>
-            {getServerRdp(server) && <span className="text-[10px] bg-[#0d1e3e] text-[#4d8ff0] px-2 py-0.5 rounded font-mono">{getServerRdp(server)}</span>}
+            {getServerRdp(server) && <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">{getServerRdp(server)}</span>}
             {pmConnected && (
               pmFetching
-                ? <span className="text-[10px] font-mono text-[#4d8ff0] animate-pulse flex items-center gap-1">
+                ? <span className="text-xs text-primary animate-pulse flex items-center gap-1">
                     <span className="animate-spin inline-block">⟳</span> Fetching Postmaster…
                   </span>
                 : <button
                     onClick={() => { pmFetchedRef.current = false; runPmFetch(serverDomains, pmToken); }}
-                    className="text-[10px] font-mono px-2 py-0.5 rounded border border-[#1a3a6e] text-[#4d8ff0] hover:border-[#4d8ff0] hover:bg-[#0d1e3e] transition-all"
+                    className="kt-btn kt-btn-outline px-2 py-1 text-xs"
                   >
                     ⟳ Refresh Postmaster
                   </button>
             )}
             <div className="ml-auto flex gap-2">
               <button onClick={() => setImportOpen(true)}
-                className="text-sm font-mono px-3 py-1.5 rounded bg-[#1a1e22] border border-[#252b32] text-[#9aa5b4] hover:border-[#4df0a0] hover:text-[#4df0a0] transition-all">
+                className="kt-btn kt-btn-outline">
                 ⬆ Import
               </button>
               <button onClick={() => setAddDomOpen(true)}
-                className="bg-[#4df0a0] text-black text-sm font-bold font-mono px-4 py-1.5 rounded hover:opacity-85 transition-opacity">
+                className="kt-btn kt-btn-primary">
                 + Domain
               </button>
             </div>
@@ -283,42 +307,48 @@ export default function ServerDetail() {
 
           {/* bulk action bar — shown when selections are made */}
           {selected.size > 0 && (
-            <div className="flex items-center gap-3 bg-[#0d1e3e] border border-[#1a3a6e] rounded-lg px-4 py-2.5 flex-wrap">
-              <span className="text-sm font-mono text-[#4d8ff0] font-bold">
+            <div className="flex items-center gap-3 bg-primary/10 border border-primary/20 rounded-xl px-4 py-2.5 flex-wrap">
+              <span className="text-sm text-primary font-bold">
                 {selected.size} domain{selected.size > 1 ? 's' : ''} selected
               </span>
-              <div className="flex items-center gap-2 flex-1">
-                <select value={bulkStatus} onChange={e => setBulkStatus(e.target.value)}
-                  className="bg-[#131619] border border-[#252b32] rounded text-sm font-mono text-[#e2e8f0] px-3 py-1.5 outline-none focus:border-[#4d8ff0]">
-                  <option value="">— set status —</option>
-                  <option value="inbox">inbox</option>
-                  <option value="spam">spam</option>
-                  <option value="blocked">blocked</option>
-                </select>
+              <div className="flex items-center gap-2 flex-1 min-w-[300px]">
+                <div className="kt-input flex-1">
+                  <select value={bulkStatus} onChange={e => setBulkStatus(e.target.value)}
+                    className="bg-transparent outline-none w-full border-none focus:ring-0">
+                    <option value="">— set status —</option>
+                    <option value="inbox">inbox</option>
+                    <option value="spam">spam</option>
+                    <option value="blocked">blocked</option>
+                  </select>
+                </div>
                 <button onClick={handleBulkStatus} disabled={!bulkStatus || bulkSaving}
-                  className="bg-[#4d8ff0] text-white text-sm font-bold font-mono px-4 py-1.5 rounded hover:opacity-85 transition-opacity disabled:opacity-40">
+                  className="kt-btn kt-btn-primary whitespace-nowrap">
                   {bulkSaving ? 'Updating…' : 'Apply'}
                 </button>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <input
-                  type="number"
-                  min="0"
-                  value={bulkSent}
-                  onChange={e => setBulkSent(e.target.value)}
-                  placeholder="Sent/day"
-                  className="bg-[#131619] border border-[#252b32] rounded text-sm font-mono text-[#e2e8f0] px-3 py-1.5 outline-none focus:border-[#4d8ff0] w-28"
-                />
-                <input
-                  type="date"
-                  value={bulkDate}
-                  onChange={e => setBulkDate(e.target.value)}
-                  className="bg-[#131619] border border-[#252b32] rounded text-sm font-mono text-[#e2e8f0] px-3 py-1.5 outline-none focus:border-[#4d8ff0]"
-                />
+                <div className="kt-input w-28">
+                  <input
+                    type="number"
+                    min="0"
+                    value={bulkSent}
+                    onChange={e => setBulkSent(e.target.value)}
+                    placeholder="Sent/day"
+                    className="bg-transparent outline-none w-full border-none focus:ring-0"
+                  />
+                </div>
+                <div className="kt-input">
+                  <input
+                    type="date"
+                    value={bulkDate}
+                    onChange={e => setBulkDate(e.target.value)}
+                    className="bg-transparent outline-none border-none focus:ring-0"
+                  />
+                </div>
                 <button
                   onClick={handleBulkWarmup}
                   disabled={!bulkSent || selectedDomainsWithIps.length === 0 || bulkSaving}
-                  className="bg-[#4df0a0] text-black text-sm font-bold font-mono px-4 py-1.5 rounded hover:opacity-85 transition-opacity disabled:opacity-40"
+                  className="kt-btn kt-btn-success whitespace-nowrap"
                 >
                   {bulkSaving ? 'Saving…' : `Log sent for ${selectedDomainsWithIps.length}`}
                 </button>
@@ -339,30 +369,30 @@ export default function ServerDetail() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
               { label: 'Domains',  val: serverDomains.length },
-              { label: 'Inbox',    val: serverDomains.filter(d => d.status === 'inbox').length,   color: '#4df0a0' },
-              { label: 'Spam',     val: serverDomains.filter(d => d.status === 'spam').length,    color: '#f09a4d' },
-              { label: 'Blocked',  val: serverDomains.filter(d => d.status === 'blocked').length, color: '#f04d4d' },
+              { label: 'Inbox',    val: serverDomains.filter(d => d.status === 'inbox').length,   color: 'text-success' },
+              { label: 'Spam',     val: serverDomains.filter(d => d.status === 'spam').length,    color: 'text-warning' },
+              { label: 'Blocked',  val: serverDomains.filter(d => d.status === 'blocked').length, color: 'text-destructive' },
             ].map(s => (
-              <div key={s.label} className="bg-[#131619] border border-[#252b32] rounded-lg px-4 py-3">
-                <div className="text-[10px] uppercase tracking-widest text-[#5a6478] mb-1">{s.label}</div>
-                <div className="text-xl font-bold" style={{ color: s.color ?? '#e2e8f0' }}>{s.val}</div>
+              <div key={s.label} className="kt-card px-4 py-3">
+                <div className="text-xs uppercase tracking-widest text-muted-foreground mb-1">{s.label}</div>
+                <div className={`text-xl font-bold ${s.color ?? 'text-foreground'}`}>{s.val}</div>
               </div>
             ))}
           </div>
 
           {/* domains table */}
-          <div className="bg-[#131619] border border-[#252b32] rounded-lg overflow-hidden overflow-x-auto">
-            <table className="w-full text-sm min-w-[900px]">
+          <div className="kt-card overflow-hidden overflow-x-auto">
+            <table className="kt-table min-w-[900px]">
               <thead>
-                <tr className="border-b border-[#252b32]">
+                <tr>
                   <th className="px-3 py-3 w-8">
                     <input type="checkbox"
                       checked={selected.size === serverDomains.length && serverDomains.length > 0}
                       onChange={toggleAll}
-                      className="accent-[#4d8ff0] cursor-pointer" />
+                      className="accent-primary cursor-pointer" />
                   </th>
                   {['Domain','IP','Sent Today','Health','Domain Rep','IP Rep','Status','Spam Rate',''].map(h => (
-                    <th key={h} className="text-left px-3 py-3 text-[10px] uppercase tracking-widest text-[#5a6478] font-medium whitespace-nowrap">{h}</th>
+                    <th key={h} className="text-left px-3 py-3 text-xs uppercase tracking-widest text-muted-foreground font-medium whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -383,44 +413,44 @@ export default function ServerDetail() {
 
                   return (
                     <tr key={d.id}
-                      className={`border-b border-[#252b32] last:border-0 hover:bg-[#1a1e22] transition-colors group
-                        ${selected.has(d.id) ? 'bg-[#0d1e3e]/40' : ''}`}>
+                      className={`hover:bg-muted/30 transition-colors group
+                        ${selected.has(d.id) ? 'bg-primary/5' : ''}`}>
                       {/* checkbox */}
                       <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
                         <input type="checkbox"
                           checked={selected.has(d.id)}
                           onChange={() => toggleSelect(d.id)}
-                          className="accent-[#4d8ff0] cursor-pointer" />
+                          className="accent-primary cursor-pointer" />
                       </td>
                       {/* domain — clickable */}
                       <td className="px-3 py-3">
                         <button onClick={() => openDomain(d)}
-                          className="font-mono text-[#4df0a0] text-[13px] font-medium hover:underline text-left">
+                          className="font-mono text-success text-[13px] font-medium hover:underline text-left">
                           {d.domain}
                         </button>
                       </td>
                       {/* IP — clickable */}
                       <td className="px-3 py-3">
                         {ip
-                          ? <button onClick={() => openIP(ip)} className="font-mono text-[#4d8ff0] text-xs hover:underline">{ip.ip}</button>
-                          : <span className="text-[#5a6478]">—</span>}
+                          ? <button onClick={() => openIP(ip)} className="font-mono text-primary text-xs hover:underline">{ip.ip}</button>
+                          : <span className="text-muted-foreground">—</span>}
                       </td>
-                      <td className="px-3 py-3 font-mono text-xs text-[#e2e8f0]">
-                        {sent > 0 ? sent.toLocaleString() : <span className="text-[#5a6478]">—</span>}
+                      <td className="px-3 py-3 font-mono text-xs text-foreground">
+                        {sent > 0 ? sent.toLocaleString() : <span className="text-muted-foreground">—</span>}
                       </td>
                       {/* health score badge */}
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-2">
                           <div className="relative w-8 h-8">
                             <svg viewBox="0 0 32 32" className="w-8 h-8 -rotate-90">
-                              <circle cx="16" cy="16" r="13" fill="none" stroke="#252b32" strokeWidth="3" />
+                              <circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" className="text-border" strokeWidth="3" />
                               <circle cx="16" cy="16" r="13" fill="none" stroke={hc} strokeWidth="3"
                                 strokeDasharray={`${(score / 100) * 81.7} 81.7`}
                                 strokeLinecap="round" />
                             </svg>
-                            <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold font-mono" style={{ color: hc }}>{score}</span>
+                            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold font-mono" style={{ color: hc }}>{score}</span>
                           </div>
-                          <span className="text-[10px] font-mono" style={{ color: hc }}>{healthLabel(score)}</span>
+                          <span className="text-xs font-mono" style={{ color: hc }}>{healthLabel(score)}</span>
                         </div>
                       </td>
                       <td className="px-3 py-3"><RepBadge val={dRep} /></td>
@@ -429,7 +459,7 @@ export default function ServerDetail() {
                         <select value={d.status} onChange={e => handleStatusChange(d.id, e.target.value)}
                           onClick={e => e.stopPropagation()}
                           className="bg-transparent text-xs font-mono outline-none cursor-pointer"
-                          style={{ color: d.status === 'inbox' ? '#4df0a0' : d.status === 'spam' ? '#f09a4d' : '#f04d4d' }}>
+                          style={{ color: d.status === 'inbox' ? 'var(--success)' : d.status === 'spam' ? 'var(--warning)' : 'var(--destructive)' }}>
                           <option value="inbox">inbox</option>
                           <option value="spam">spam</option>
                           <option value="blocked">blocked</option>
@@ -441,11 +471,11 @@ export default function ServerDetail() {
                       <td className="px-3 py-3">
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={() => openDomain(d)}
-                            className="text-[11px] font-mono px-2 py-0.5 rounded border border-[#252b32] text-[#5a6478] hover:text-[#4df0a0] hover:border-[#4df0a0] transition-all">
+                            className="kt-btn kt-btn-outline px-2 py-1 text-xs">
                             Open
                           </button>
                           <button onClick={() => handleDeleteDomain(d.id)}
-                            className="text-[11px] font-mono px-2 py-0.5 rounded border border-[#252b32] text-[#5a6478] hover:text-[#f04d4d] hover:border-[#f04d4d] transition-all">
+                            className="kt-btn kt-btn-outline px-2 py-1 text-xs text-muted-foreground hover:text-destructive hover:border-destructive">
                             Del
                           </button>
                         </div>
@@ -465,16 +495,11 @@ export default function ServerDetail() {
           domain={activeDomain}
           ip={getIP(activeDomain.id) ?? null}
           userId={ctx.currentUser?.uid}
-          repHistory={reputation.filter(r => r.domainId === activeDomain.id).sort((a,b) => b.date.localeCompare(a.date))}
+          repHistory={reputation
+            .filter(r => r.domainId === activeDomain.id && typeof r.date === 'string' && r.date.length > 0)
+            .sort((a, b) => b.date.localeCompare(a.date))}
           onOpenIP={(ip) => openIP(ip)}
-          onSaveRep={async (date, dRep, iRep, spamRate) => {
-            try {
-              await ctx.addReputation(activeDomain.id, date, dRep, iRep, spamRate);
-              // also update quick fields on domain doc
-              await ctx.updateDomain(activeDomain.id, { domainRep: dRep, ipRep: iRep, spamRate });
-              showToast('Postmaster data saved ✓');
-            } catch { showToast('Error saving', true); }
-          }}
+          onSaveRep={onSaveRep}
           onDeleteRep={async (id) => {
             try { await ctx.deleteReputation(id); showToast('Deleted'); }
             catch { showToast('Error', true); }
@@ -488,15 +513,7 @@ export default function ServerDetail() {
           ip={activeIP}
           domain={activeDomain}
           warmupHistory={warmups.filter(w => w.ipId === activeIP.id).sort((a,b) => b.date.localeCompare(a.date))}
-          onSave={async (date, sent) => {
-            // if record for that date already exists, update it
-            const existing = warmups.find(w => w.ipId === activeIP.id && w.date === date);
-            try {
-              if (existing) { await ctx.updateWarmup(existing.id, sent); }
-              else          { await ctx.addWarmup(activeIP.id, sent, date); }
-              showToast('Warmup logged ✓');
-            } catch { showToast('Error saving', true); }
-          }}
+          onSave={onSaveWarmup}
           onDelete={async (id) => {
             try { await ctx.deleteWarmup(id); showToast('Deleted'); }
             catch { showToast('Error', true); }
@@ -507,12 +524,12 @@ export default function ServerDetail() {
       {/* Import modal */}
       {importOpen && (
         <Modal title="Import Domains / IPs" onClose={() => setImportOpen(false)} size="md">
-          <p className="text-[#5a6478] text-xs font-mono mb-3">
-            One per line: <code className="text-[#4df0a0]">domain;ip;provider;status;unsubscribe;spamRate;lastCheck</code>
+          <p className="text-muted-foreground text-xs font-medium mb-4 bg-muted p-3 rounded-lg border border-border">
+            Bulk Upload: One per line → <code className="text-primary font-bold">domain;ip;provider;status;unsubscribe;spamRate;lastCheck</code>
           </p>
           <textarea value={importText} onChange={e => setImportText(e.target.value)} rows={8}
             placeholder="villarigatti.com;134.195.89.5&#10;nuyoungevity.com;134.195.89.228;Namecheap;inbox;NO;0%"
-            className="w-full bg-[#1a1e22] border border-[#252b32] rounded-md text-[#e2e8f0] text-xs font-mono px-3 py-2 outline-none focus:border-[#4df0a0] resize-y transition-colors placeholder:text-[#5a6478]" />
+            className="kt-input w-full min-h-[200px] font-mono" />
           <ModalFooter onCancel={() => setImportOpen(false)} onSave={handleImport} saving={saving} />
         </Modal>
       )}
@@ -535,18 +552,18 @@ export default function ServerDetail() {
 
 // Rep color map
 const REP_COLORS: Record<string, string> = {
-  HIGH: '#4df0a0', MEDIUM: '#4d8ff0', LOW: '#f09a4d', BAD: '#f04d4d', 'N/A': '#5a6478',
+  HIGH: 'var(--success)', MEDIUM: 'var(--info)', LOW: 'var(--warning)', BAD: 'var(--destructive)', 'N/A': 'var(--muted-foreground)',
 };
 
 function LiveRepCard({ label, val, icon }: { label: string; val: string; icon: string }) {
-  const color = REP_COLORS[val] ?? '#5a6478';
+  const color = REP_COLORS[val] ?? 'var(--muted-foreground)';
   return (
-    <div className="bg-[#0d1e3e]/50 border border-[#1a3a6e] rounded-lg px-4 py-3 flex items-center justify-between">
+    <div className="kt-card px-4 py-3 flex items-center justify-between">
       <div>
-        <div className="text-[10px] uppercase tracking-widest text-[#5a6478] mb-1 font-mono">{label}</div>
-        <div className="text-base font-bold font-mono" style={{ color }}>{val}</div>
+        <div className="text-xs uppercase tracking-widest text-muted-foreground mb-1">{label}</div>
+        <div className="text-lg font-bold" style={{ color }}>{val}</div>
       </div>
-      <span className="text-xl opacity-60">{icon}</span>
+      <span className="text-2xl opacity-50">{icon}</span>
     </div>
   );
 }
@@ -560,6 +577,8 @@ function DomainPanel({ domain, ip, repHistory, onOpenIP, onSaveRep, onDeleteRep,
   onSaveRep: (date: string, dRep: string, iRep: string, spamRate: string) => Promise<void>;
   onDeleteRep: (id: string) => Promise<void>;
 }) {
+  const [autoSave, setAutoSave] = useState(true);
+  const [historyLimit, setHistoryLimit] = useState(7);
   const [date,     setDate]    = useState(todayStr());
   const [domRep,   setDomRep]  = useState('');
   const [ipRep,    setIpRep]   = useState('');
@@ -589,18 +608,39 @@ function DomainPanel({ domain, ip, repHistory, onOpenIP, onSaveRep, onDeleteRep,
     if (!connected || !token || hasFetchedRef.current) return;
     hasFetchedRef.current = true;
     fetchLive();
-  }, [connected, token, domain.domain]);
+  }, [connected, token, domain.domain, historyLimit]);
+
+  const formatSpamRate = (val: number | null | undefined) => {
+    return typeof val === 'number' ? val.toFixed(4) : '—';
+  };
 
   const fetchLive = async () => {
     if (!token) return;
     setLiveLoading(true);
     setLiveError(null);
-    const { stats, error } = await fetchDomainStats(token, domain.domain);
+    const { stats, error } = await fetchDomainStats(token, domain.domain, historyLimit);
     setLiveLoading(false);
     if (error === '__expired__') { handleExpired(); return; }
     if (error) { setLiveError(error); return; }
     setLiveStats(stats);
   };
+
+  const lastAutoSaveRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!autoSave || liveStats.length === 0) return;
+    const latest = liveStats[liveStats.length - 1];
+    const latestDomRep = [...liveStats].reverse().find(s => s.domainRep && s.domainRep !== 'N/A')?.domainRep ?? latest.domainRep;
+    const latestIpRep = [...liveStats].reverse().find(s => s.ipRep && s.ipRep !== 'N/A')?.ipRep ?? latest.ipRep;
+    
+    // session-level check to avoid spamming saves
+    const saveKey = `${latest.date}-${latestDomRep}-${latestIpRep}-${latest.spamRate}`;
+    if (lastAutoSaveRef.current === saveKey) return;
+    
+    if (latestDomRep || latestIpRep) {
+      lastAutoSaveRef.current = saveKey;
+      onSaveRep(latest.date, latestDomRep || '', latestIpRep || '', (latest.spamRate ?? 0).toFixed(4) + '%');
+    }
+  }, [liveStats, autoSave, onSaveRep]);
 
   const handleSave = async () => {
     if (!domRep && !ipRep) return;
@@ -615,126 +655,153 @@ function DomainPanel({ domain, ip, repHistory, onOpenIP, onSaveRep, onDeleteRep,
     if (!liveLatest) return;
     if (liveLatestDomRep) setDomRep(liveLatestDomRep);
     if (liveLatestIpRep)  setIpRep(liveLatestIpRep);
-    setSpamRate(liveLatest.spamRate.toFixed(4));
+    setSpamRate(typeof liveLatest.spamRate === 'number' ? liveLatest.spamRate.toFixed(4) : '0.0000');
+    setDate(liveLatest.date);
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* Postmaster connection banner */}
       <PostmasterConnect />
 
       {/* ── LIVE POSTMASTER METRICS (shown when connected) ─────────────── */}
       {connected && (
-        <div className="bg-[#131619] border border-[#1a3a6e] rounded-lg p-4 space-y-4">
+        <div className="kt-card p-5 space-y-4 border-primary/20 bg-primary/5">
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="text-[11px] uppercase tracking-widest text-[#4d8ff0] font-medium">
+            <div className="text-xs uppercase tracking-widest text-primary font-bold">
               📡 Live Postmaster Data
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={autoSave}
+                  onChange={e => setAutoSave(e.target.checked)}
+                  className="accent-primary"
+                />
+                <span className="group-hover:text-foreground transition-colors">Auto‑save</span>
+              </label>
               {liveLatest && (
                 <button
                   onClick={handleAutoFill}
-                  className="text-[11px] font-mono px-3 py-1 rounded bg-[#0d2e1e] border border-[#4df0a0]/30 text-[#4df0a0] hover:bg-[#0d2e1e]/80 transition-all"
+                  className="kt-btn kt-btn-success px-3 py-1 text-xs"
                 >
                   ↓ Auto-fill form
                 </button>
               )}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest whitespace-nowrap">History:</span>
+                <select
+                  value={historyLimit}
+                  onChange={e => setHistoryLimit(Number(e.target.value))}
+                  className="bg-background border border-border/50 text-[10px] font-bold px-2 py-1 rounded cursor-pointer outline-none focus:border-primary/50"
+                >
+                  <option value={1}>Latest</option>
+                  <option value={7}>7 Days</option>
+                  <option value={30}>30 Days</option>
+                  <option value={90}>90 Days</option>
+                </select>
+              </div>
               <button
                 onClick={() => { hasFetchedRef.current = false; fetchLive(); }}
                 disabled={liveLoading}
-                className="text-[11px] font-mono px-3 py-1 rounded bg-[#1a1e22] border border-[#252b32] text-[#9aa5b4] hover:text-[#4df0a0] hover:border-[#4df0a0] transition-all disabled:opacity-40"
+                className="kt-btn kt-btn-outline px-3 py-1 text-xs disabled:opacity-40"
               >
-                {liveLoading ? '⟳ Loading…' : '⟳ Refresh'}
+                {liveLoading ? 'Loading…' : '⟳ Refresh'}
               </button>
             </div>
           </div>
 
           {liveLoading && (
-            <div className="flex items-center gap-2 text-[#5a6478] text-xs font-mono py-4 justify-center">
-              <span className="animate-spin inline-block text-[#4d8ff0]">⟳</span>
+            <div className="flex items-center gap-2 text-muted-foreground text-sm py-6 justify-center">
+              <span className="animate-spin inline-block text-primary">⟳</span>
               Fetching Postmaster data…
             </div>
           )}
 
           {liveError && (
-            <div className="text-xs font-mono text-[#f09a4d] bg-[#2e1e0d]/50 border border-[#f09a4d]/20 rounded px-3 py-2">
+            <div className="text-xs font-mono text-warning bg-warning/10 border border-warning/20 rounded-lg px-4 py-3">
               ⚠ {liveError}
             </div>
           )}
 
           {!liveLoading && !liveError && liveStats.length === 0 && (
-            <div className="text-xs font-mono text-[#5a6478] text-center py-4">
-              No data available — domain may not have enough Gmail traffic yet,
-              or isn't registered at <a href="https://postmaster.google.com" target="_blank" rel="noopener noreferrer" className="text-[#4d8ff0] hover:underline">postmaster.google.com</a>.
+            <div className="text-sm text-muted-foreground text-center py-6">
+              No data available — domain may not have enough Gmail traffic yet Or isn't registered at <a href="https://postmaster.google.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">postmaster.google.com</a>.
             </div>
           )}
 
           {!liveLoading && liveLatest && (
             <>
               {/* Latest metrics cards */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <LiveRepCard label="Domain Rep"   val={liveLatestDomRep ?? liveLatest.domainRep} icon="🛡" />
                 <LiveRepCard label="IP Rep"        val={liveLatestIpRep  ?? liveLatest.ipRep}     icon="📡" />
-                <div className="bg-[#0d1e3e]/50 border border-[#1a3a6e] rounded-lg px-4 py-3 flex items-center justify-between">
+                <div className="kt-card px-4 py-3 flex items-center justify-between">
                   <div>
-                    <div className="text-[10px] uppercase tracking-widest text-[#5a6478] mb-1 font-mono">Spam Rate</div>
+                    <div className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Spam Rate</div>
                     <div
-                      className="text-base font-bold font-mono"
-                      style={{ color: liveLatest.spamRate === 0 ? '#4df0a0' : liveLatest.spamRate < 0.1 ? '#4df0a0' : liveLatest.spamRate < 0.3 ? '#f09a4d' : '#f04d4d' }}
+                      className="text-lg font-bold font-mono"
+                      style={{ 
+                        color: typeof liveLatest.spamRate !== 'number' ? 'var(--muted-foreground)' 
+                             : liveLatest.spamRate < 0.1 ? 'var(--success)' 
+                             : liveLatest.spamRate < 0.3 ? 'var(--warning)' 
+                             : 'var(--destructive)' 
+                      }}
                     >
-                      {liveLatest.spamRate.toFixed(4)}%
+                      {formatSpamRate(liveLatest.spamRate)}{typeof liveLatest.spamRate === 'number' ? '%' : ''}
                     </div>
                   </div>
-                  <span className="text-xl opacity-60">📊</span>
+                  <span className="text-2xl opacity-50">📊</span>
                 </div>
               </div>
 
               {/* Mini spark chart — last 14 days spam rate */}
               {liveStats.length > 1 && (
-                <div>
-                  <div className="text-[10px] text-[#5a6478] font-mono mb-1.5">Spam rate — last {Math.min(liveStats.length, 14)} days</div>
+                <div className="pt-2">
+                  <div className="text-xs text-muted-foreground mb-2 flex justify-between">
+                    <span>Spam rate — last {Math.min(liveStats.length, 14)} days</span>
+                    <span className="font-mono">Latest: {liveLatest.date}</span>
+                  </div>
                   <SparkChart data={liveStats.slice(-14)} />
                 </div>
               )}
-
-              <div className="text-[10px] text-[#5a6478] font-mono text-right">
-                Latest: {liveLatest.date}
-              </div>
             </>
           )}
         </div>
       )}
 
       {/* domain header */}
-      <div className="flex items-start gap-4 flex-wrap">
-        <div>
-          <h2 className="font-bold text-[#e2e8f0] text-base font-mono">{domain.domain}</h2>
-          <div className="flex items-center gap-3 mt-1 text-xs text-[#5a6478] font-mono flex-wrap">
+      <div className="flex items-start gap-4 flex-wrap border-b border-border pb-6">
+        <div className="space-y-1">
+          <h2 className="font-bold text-foreground text-2xl">{domain.domain}</h2>
+          <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
             {ip && (
-              <button onClick={() => onOpenIP(ip)} className="text-[#4d8ff0] hover:underline">{ip.ip}</button>
+              <button onClick={() => onOpenIP(ip)} className="text-primary hover:underline font-mono">{ip.ip}</button>
             )}
-            <span style={{ color: domain.status === 'inbox' ? '#4df0a0' : domain.status === 'spam' ? '#f09a4d' : '#f04d4d' }}>
+            <span className="font-semibold" style={{ color: domain.status === 'inbox' ? 'var(--success)' : domain.status === 'spam' ? 'var(--warning)' : 'var(--destructive)' }}>
               {domain.status}
             </span>
-            <span>{domain.provider || '—'}</span>
+            <span className="opacity-50">|</span>
+            <span>{domain.provider || 'No Provider'}</span>
           </div>
         </div>
         {/* health score ring */}
-        <div className="ml-auto flex items-center gap-3">
-          <div className="relative w-16 h-16">
-            <svg viewBox="0 0 64 64" className="w-16 h-16 -rotate-90">
-              <circle cx="32" cy="32" r="27" fill="none" stroke="#252b32" strokeWidth="5" />
-              <circle cx="32" cy="32" r="27" fill="none" stroke={hc} strokeWidth="5"
-                strokeDasharray={`${(score / 100) * 169.6} 169.6`} strokeLinecap="round" />
+        <div className="ml-auto flex items-center gap-4">
+          <div className="relative w-20 h-20">
+            <svg viewBox="0 0 64 64" className="w-20 h-20 -rotate-90">
+              <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" className="text-border" strokeWidth="4" />
+              <circle cx="32" cy="32" r="28" fill="none" stroke={hc} strokeWidth="4"
+                strokeDasharray={`${(score / 100) * 175.9} 175.9`} strokeLinecap="round" />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-lg font-bold font-mono leading-none" style={{ color: hc }}>{score}</span>
-              <span className="text-[9px] text-[#5a6478]">/100</span>
+              <span className="text-xl font-bold font-mono leading-none" style={{ color: hc }}>{score}</span>
+              <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Score</span>
             </div>
           </div>
           <div>
-            <div className="text-sm font-bold" style={{ color: hc }}>{healthLabel(score)}</div>
-            <div className="text-[10px] text-[#5a6478] mt-0.5">Domain Health</div>
+            <div className="text-lg font-bold" style={{ color: hc }}>{healthLabel(score)}</div>
+            <div className="text-xs text-muted-foreground uppercase tracking-widest">Health Level</div>
           </div>
         </div>
       </div>
@@ -743,23 +810,23 @@ function DomainPanel({ domain, ip, repHistory, onOpenIP, onSaveRep, onDeleteRep,
       <HealthBreakdown domain={domain} latest={latest} score={score} />
 
       {/* two-column: postmaster form + latest data */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* ── Postmaster form ── */}
-        <div className="bg-[#131619] border border-[#252b32] rounded-lg p-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="text-[11px] uppercase tracking-widest text-[#5a6478] font-medium">
-              📊 Record Google Postmaster Data
+        <div className="kt-card p-5">
+          <div className="flex items-center justify-between mb-6">
+            <div className="text-xs uppercase tracking-widest text-muted-foreground font-bold">
+              📊 Record Postmaster Data
             </div>
             {liveLatest && (
               <button
                 onClick={handleAutoFill}
-                className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#0d2e1e] border border-[#4df0a0]/30 text-[#4df0a0] hover:opacity-80 transition-opacity"
+                className="kt-btn kt-btn-success px-2 py-1 text-[10px]"
               >
                 Auto-fill ↑
               </button>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className="grid grid-cols-2 gap-4 mb-4">
             <Field label="Domain Reputation">
               <Select value={domRep} onChange={e => setDomRep(e.target.value)}>
                 <option value="">— select —</option>
@@ -773,7 +840,7 @@ function DomainPanel({ domain, ip, repHistory, onOpenIP, onSaveRep, onDeleteRep,
               </Select>
             </Field>
           </div>
-          <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="grid grid-cols-2 gap-4 mb-6">
             <Field label="Spam Rate (%)">
               <Input type="number" value={spamRate} onChange={e => setSpamRate(e.target.value)}
                 placeholder="0.10" step="0.0001" min="0" max="100" />
@@ -783,17 +850,17 @@ function DomainPanel({ domain, ip, repHistory, onOpenIP, onSaveRep, onDeleteRep,
             </Field>
           </div>
           <button onClick={handleSave} disabled={saving || (!domRep && !ipRep)}
-            className="w-full bg-[#4df0a0] text-black font-bold text-sm font-mono py-2 rounded hover:opacity-85 transition-opacity disabled:opacity-40">
+            className="kt-btn kt-btn-primary w-full py-2.5 font-bold">
             {saving ? 'Saving…' : 'Save Postmaster Data'}
           </button>
         </div>
 
         {/* ── Current snapshot ── */}
-        <div className="bg-[#131619] border border-[#252b32] rounded-lg p-4">
-          <div className="text-[11px] uppercase tracking-widest text-[#5a6478] mb-4 font-medium">
+        <div className="kt-card p-5">
+          <div className="text-xs uppercase tracking-widest text-muted-foreground mb-6 font-bold">
             Current Snapshot
           </div>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {[
               { label: 'Domain Rep', val: latestDRep },
               { label: 'IP Rep',     val: latestIRep },
@@ -801,46 +868,46 @@ function DomainPanel({ domain, ip, repHistory, onOpenIP, onSaveRep, onDeleteRep,
               { label: 'Status',     val: domain.status },
               { label: 'Last Check', val: domain.lastCheck || '—' },
             ].map(row => (
-              <div key={row.label} className="flex items-center justify-between">
-                <span className="text-xs text-[#5a6478] font-mono">{row.label}</span>
+              <div key={row.label} className="flex items-center justify-between border-b border-border/50 pb-2 last:border-0 last:pb-0">
+                <span className="text-sm text-muted-foreground">{row.label}</span>
                 <RepBadge val={row.val} />
               </div>
             ))}
           </div>
           {ip && (
             <button onClick={() => onOpenIP(ip)}
-              className="mt-4 w-full text-sm font-mono px-3 py-2 rounded bg-[#0d1e3e] border border-[#1a3a6e] text-[#4d8ff0] hover:border-[#4d8ff0] transition-all">
-              📈 Open IP Warmup Tracker → {ip.ip}
+              className="mt-6 kt-btn kt-btn-outline w-full py-2 flex items-center justify-center gap-2">
+              📈 Open IP Warmup Tracker → <span className="font-mono">{ip.ip}</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* reputation history — unchanged */}
+      {/* reputation history */}
       {repHistory.length > 0 && (
-        <div className="bg-[#131619] border border-[#252b32] rounded-lg overflow-hidden">
-          <div className="px-4 py-3 border-b border-[#252b32] text-[11px] uppercase tracking-widest text-[#5a6478] font-medium">
+        <div className="kt-card overflow-hidden">
+          <div className="px-5 py-4 border-b border-border text-xs uppercase tracking-widest text-muted-foreground font-bold">
             Postmaster History — {repHistory.length} records
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="kt-table">
               <thead>
-                <tr className="border-b border-[#252b32]">
+                <tr>
                   {['Date','Domain Rep','IP Rep','Spam Rate',''].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-[10px] uppercase tracking-widest text-[#5a6478] font-medium">{h}</th>
+                    <th key={h} className="text-left px-5 py-4 text-xs uppercase tracking-widest text-muted-foreground font-medium">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {repHistory.map(r => (
-                  <tr key={r.id} className="border-b border-[#252b32] last:border-0 hover:bg-[#1a1e22] transition-colors group">
-                    <td className="px-4 py-3 font-mono text-xs text-[#9aa5b4]">{fmtDate(r.date)}</td>
-                    <td className="px-4 py-3"><RepBadge val={r.domainRep} /></td>
-                    <td className="px-4 py-3"><RepBadge val={r.ipRep} /></td>
-                    <td className="px-4 py-3"><SpamRateBadge rate={r.spamRate} /></td>
-                    <td className="px-4 py-3">
+                  <tr key={r.id} className="hover:bg-muted/30 transition-colors group">
+                    <td className="px-5 py-4 font-mono text-xs text-muted-foreground">{fmtDate(r.date)}</td>
+                    <td className="px-5 py-4"><RepBadge val={r.domainRep} /></td>
+                    <td className="px-5 py-4"><RepBadge val={r.ipRep} /></td>
+                    <td className="px-5 py-4"><SpamRateBadge rate={r.spamRate} /></td>
+                    <td className="px-5 py-4 text-right">
                       <button onClick={() => onDeleteRep(r.id)}
-                        className="opacity-0 group-hover:opacity-100 text-[11px] font-mono px-2 py-0.5 rounded border border-transparent text-[#5a6478] hover:text-[#f04d4d] hover:border-[#f04d4d] transition-all">
+                        className="opacity-0 group-hover:opacity-100 kt-btn kt-btn-outline px-2 py-1 text-xs text-muted-foreground hover:text-destructive hover:border-destructive">
                         Del
                       </button>
                     </td>
@@ -876,8 +943,9 @@ function SparkChart({ data }: { data: PMDayStats[] }) {
     const n    = data.length;
     const padX = 4;
 
+    const padY = 6;
     const x = (i: number) => padX + (i / (n - 1)) * (W - padX * 2);
-    const y = (v: number) => H - 4 - ((v / maxV) * (H - 8));
+    const y = (v: number) => H - padY - ((v / maxV) * (H - padY * 2));
 
     // Gradient fill
     const grad = ctx.createLinearGradient(0, 0, 0, H);
@@ -897,15 +965,18 @@ function SparkChart({ data }: { data: PMDayStats[] }) {
     ctx.beginPath();
     ctx.moveTo(x(0), y(vals[0]));
     for (let i = 1; i < n; i++) ctx.lineTo(x(i), y(vals[i]));
-    ctx.strokeStyle = '#4d8ff0';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#3b82f6'; // primary
+    ctx.lineWidth = 2;
     ctx.stroke();
 
     // Latest dot
     ctx.beginPath();
-    ctx.arc(x(n - 1), y(vals[n - 1]), 3, 0, Math.PI * 2);
-    ctx.fillStyle = '#4df0a0';
+    ctx.arc(x(n - 1), y(vals[n - 1]), 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#10b981'; // success
     ctx.fill();
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
   }, [data]);
 
   return <canvas ref={canvasRef} style={{ display: 'block', width: '100%' }} height={40} />;
@@ -941,41 +1012,41 @@ function IPPanel({ ip, domain, warmupHistory, onSave, onDelete }: {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* IP header */}
-      <div>
-        <h2 className="font-bold text-[#4d8ff0] text-base font-mono">{ip.ip}</h2>
-        {domain && <p className="text-xs text-[#5a6478] font-mono mt-0.5">on {domain.domain}</p>}
+      <div className="border-b border-border pb-6">
+        <h2 className="font-bold text-primary text-2xl font-mono">{ip.ip}</h2>
+        {domain && <p className="text-sm text-muted-foreground mt-1">Allocation for <span className="font-semibold text-foreground">{domain.domain}</span></p>}
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: 'Total Sent',  val: totalSent.toLocaleString(),  color: '#4d8ff0' },
-          { label: 'Today',       val: todaySent.toLocaleString(),  color: '#4df0a0' },
-          { label: 'Avg / Day',   val: avgDaily.toLocaleString(),   color: '#f09a4d' },
-          { label: 'Days Logged', val: warmupHistory.length,        color: '#e2e8f0' },
+          { label: 'Total Sent',  val: totalSent.toLocaleString(),  color: 'var(--info)' },
+          { label: 'Today',       val: todaySent.toLocaleString(),  color: 'var(--success)' },
+          { label: 'Avg / Day',   val: avgDaily.toLocaleString(),   color: 'var(--warning)' },
+          { label: 'Days Logged', val: warmupHistory.length,        color: 'var(--foreground)' },
         ].map(k => (
-          <div key={k.label} className="bg-[#131619] border border-[#252b32] rounded-lg px-4 py-3">
-            <div className="text-[10px] uppercase tracking-widest text-[#5a6478] mb-1">{k.label}</div>
+          <div key={k.label} className="kt-card px-4 py-3">
+            <div className="text-xs uppercase tracking-widest text-muted-foreground mb-1 font-bold">{k.label}</div>
             <div className="text-xl font-bold font-mono" style={{ color: k.color }}>{k.val}</div>
           </div>
         ))}
       </div>
 
       {/* chart + form side by side */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* warmup chart */}
-        <div className="bg-[#131619] border border-[#252b32] rounded-lg p-4">
-          <div className="text-[11px] uppercase tracking-widest text-[#5a6478] mb-3 font-medium">
+        <div className="kt-card p-5 overflow-hidden">
+          <div className="text-xs uppercase tracking-widest text-muted-foreground mb-4 font-bold">
             Warmup Progress — last 30 days
           </div>
           <WarmupChart records={[...warmupHistory].reverse().slice(0, 30)} />
         </div>
 
         {/* log form */}
-        <div className="bg-[#131619] border border-[#252b32] rounded-lg p-4">
-          <div className="text-[11px] uppercase tracking-widest text-[#5a6478] mb-4 font-medium">
+        <div className="kt-card p-5">
+          <div className="text-xs uppercase tracking-widest text-muted-foreground mb-6 font-bold">
             📬 Log Warmup Volume
           </div>
           <Field label="Emails Sent">
@@ -986,27 +1057,27 @@ function IPPanel({ ip, domain, warmupHistory, onSave, onDelete }: {
             <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
           </Field>
           <button onClick={handleSave} disabled={saving || !sent}
-            className="w-full mt-2 bg-[#4d8ff0] text-white font-bold text-sm font-mono py-2 rounded hover:opacity-85 transition-opacity disabled:opacity-40">
+            className="kt-btn kt-btn-primary w-full mt-4 py-2.5 font-bold">
             {saving ? 'Saving…' : 'Log Volume'}
           </button>
-          <p className="text-[10px] text-[#5a6478] font-mono mt-2 text-center">
-            If a record for that date already exists, it will be overwritten.
+          <p className="text-xs text-muted-foreground mt-3 text-center italic">
+            Existing records for the same date will be overwritten.
           </p>
         </div>
       </div>
 
       {/* warmup table */}
       {warmupHistory.length > 0 && (
-        <div className="bg-[#131619] border border-[#252b32] rounded-lg overflow-hidden">
-          <div className="px-4 py-3 border-b border-[#252b32] text-[11px] uppercase tracking-widest text-[#5a6478] font-medium">
+        <div className="kt-card overflow-hidden">
+          <div className="px-5 py-4 border-b border-border text-xs uppercase tracking-widest text-muted-foreground font-bold">
             Warmup History — {warmupHistory.length} records
           </div>
-          <div className="overflow-auto max-h-64">
-            <table className="w-full text-sm">
+          <div className="overflow-auto max-h-80">
+            <table className="kt-table">
               <thead>
-                <tr className="border-b border-[#252b32] sticky top-0 bg-[#131619]">
-                  {['Date','Emails Sent','Bar',''].map(h => (
-                    <th key={h} className="text-left px-4 py-3 text-[10px] uppercase tracking-widest text-[#5a6478] font-medium">{h}</th>
+                <tr className="sticky top-0 bg-background shadow-sm">
+                  {['Date','Emails Sent','Progression',''].map(h => (
+                    <th key={h} className="text-left px-5 py-4 text-xs uppercase tracking-widest text-muted-foreground font-medium">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -1015,17 +1086,17 @@ function IPPanel({ ip, domain, warmupHistory, onSave, onDelete }: {
                   const maxSent = Math.max(...warmupHistory.map(x => x.sent), 1);
                   const pct = Math.round((w.sent / maxSent) * 100);
                   return (
-                    <tr key={w.id} className="border-b border-[#252b32] last:border-0 hover:bg-[#1a1e22] transition-colors group">
-                      <td className="px-4 py-3 font-mono text-xs text-[#9aa5b4]">{fmtDate(w.date)}</td>
-                      <td className="px-4 py-3 font-bold font-mono text-[#e2e8f0]">{w.sent.toLocaleString()}</td>
-                      <td className="px-4 py-3 w-32">
-                        <div className="h-1.5 bg-[#252b32] rounded-full overflow-hidden">
-                          <div className="h-full bg-[#4d8ff0] rounded-full transition-all" style={{ width: `${pct}%` }} />
+                    <tr key={w.id} className="hover:bg-muted/30 transition-colors group">
+                      <td className="px-5 py-4 font-mono text-xs text-muted-foreground">{fmtDate(w.date)}</td>
+                      <td className="px-5 py-4 font-bold font-mono text-foreground">{w.sent.toLocaleString()}</td>
+                      <td className="px-5 py-4 w-40">
+                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                          <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${pct}%` }} />
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-5 py-4 text-right">
                         <button onClick={() => onDelete(w.id)}
-                          className="opacity-0 group-hover:opacity-100 text-[11px] font-mono px-2 py-0.5 rounded border border-transparent text-[#5a6478] hover:text-[#f04d4d] hover:border-[#f04d4d] transition-all">
+                          className="opacity-0 group-hover:opacity-100 kt-btn kt-btn-outline px-2 py-1 text-xs text-muted-foreground hover:text-destructive hover:border-destructive">
                           Del
                         </button>
                       </td>
@@ -1062,19 +1133,23 @@ function WarmupChart({ records }: { records: Warmup[] }) {
     const vals = records.map(r => r.sent);
     const maxV = Math.max(...vals, 1);
     const n    = records.length;
-    const P    = { t: 8, r: 8, b: 22, l: 50 };
-    const cW   = W - P.l - P.r;
+    const P    = { t: 8, r: 8, b: 40, l: 50 };
+    const padX = 50;
+    const cW   = W - padX - 10;
     const cH   = H - P.t - P.b;
-    const barW = Math.max(3, Math.min(18, cW / Math.max(n, 1) - 2));
+    
+    // Better bar spacing logic
+    const barW = Math.max(4, Math.min(18, (cW / Math.max(n, 1)) * 0.7));
+    const xPos = (i: number) => padX + (n <= 1 ? cW/2 : (i / (n - 1)) * (cW - barW));
 
     // grid
     [0.25, 0.5, 0.75, 1].forEach(f => {
       const y = P.t + cH * (1 - f);
       ctx.strokeStyle = '#252b32'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(P.l, y); ctx.lineTo(W - P.r, y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(padX, y); ctx.lineTo(W - 10, y); ctx.stroke();
       ctx.fillStyle = '#5a6478'; ctx.font = '10px monospace'; ctx.textAlign = 'right';
       const label = maxV * f >= 1000 ? `${((maxV * f) / 1000).toFixed(0)}k` : String(Math.round(maxV * f));
-      ctx.fillText(label, P.l - 4, y + 3);
+      ctx.fillText(label, padX - 6, y + 3);
     });
 
     // gradient bars
@@ -1082,7 +1157,7 @@ function WarmupChart({ records }: { records: Warmup[] }) {
     grad.addColorStop(0, '#4d8ff0'); grad.addColorStop(1, '#0d1e3e');
 
     records.forEach((r, i) => {
-      const x  = P.l + (i / Math.max(n - 1, 1)) * cW - barW / 2;
+      const x  = xPos(i);
       const bH = Math.max(2, (r.sent / maxV) * cH);
       ctx.fillStyle = r.date === todayStr() ? '#4df0a0' : grad;
       ctx.beginPath(); ctx.roundRect(x, P.t + cH - bH, barW, bH, 2); ctx.fill();
@@ -1090,11 +1165,16 @@ function WarmupChart({ records }: { records: Warmup[] }) {
 
     // x-axis labels
     ctx.fillStyle = '#5a6478'; ctx.font = '10px monospace'; ctx.textAlign = 'center';
-    const step = Math.max(1, Math.floor(n / 5));
+    const step = Math.max(1, Math.floor(n / 6));
     records.forEach((r, i) => {
       if (i % step === 0 || i === n - 1) {
-        const x = P.l + (i / Math.max(n - 1, 1)) * cW;
-        ctx.fillText(new Date(r.date + 'T12:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }), x, H - 3);
+        const x = xPos(i) + barW / 2;
+        const label = fmtDate(r.date);
+        ctx.save();
+        ctx.translate(x, H - 25);
+        ctx.rotate(-Math.PI / 4);
+        ctx.fillText(label, 0, 0);
+        ctx.restore();
       }
     });
   }, [records]);
@@ -1102,7 +1182,7 @@ function WarmupChart({ records }: { records: Warmup[] }) {
   if (records.length === 0) {
     return <div className="h-[140px] flex items-center justify-center text-[#5a6478] text-xs font-mono">No data yet</div>;
   }
-  return <canvas ref={canvasRef} style={{ display: 'block', width: '100%' }} height={140} />;
+  return <canvas ref={canvasRef} style={{ display: 'block', width: '100%', maxWidth: '100%' }} height={140} />;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -1116,8 +1196,10 @@ function HealthBreakdown({ domain, latest, score }: {
 }) {
   const dRep = domain.domainRep ?? latest?.domainRep ?? '';
   const iRep = domain.ipRep     ?? latest?.ipRep     ?? '';
-  const rawRate = parseFloat((domain.spamRate ?? latest?.spamRate ?? '').replace('%', ''));
-  const rate = isNaN(rawRate) ? 0 : rawRate;
+  const spamRaw = (domain.spamRate ?? latest?.spamRate ?? '').trim();
+  const parsedRate = spamRaw ? parseFloat(spamRaw.replace('%', '')) : NaN;
+  const hasRate = !isNaN(parsedRate);
+  const rate = hasRate ? parsedRate : 0;
 
   const items = [
     {
@@ -1140,39 +1222,43 @@ function HealthBreakdown({ domain, latest, score }: {
     },
     {
       label: 'Spam Rate',
-      score: rate === 0 ? 20 : rate < 0.1 ? 16 : rate < 0.3 ? 10 : rate < 1 ? 4 : 0,
+      score: hasRate ? (rate === 0 ? 20 : rate < 0.1 ? 16 : rate < 0.3 ? 10 : rate < 1 ? 4 : 0) : 0,
       max: 20,
-      val: domain.spamRate || '0%',
+      val: domain.spamRate || '—',
     },
   ];
 
   return (
-    <div className="bg-[#131619] border border-[#252b32] rounded-lg p-4">
-      <div className="text-[11px] uppercase tracking-widest text-[#5a6478] mb-3 font-medium">Health Score Breakdown</div>
-      <div className="space-y-2.5">
+    <div className="kt-card p-5">
+      <div className="text-xs uppercase tracking-widest text-muted-foreground mb-5 font-bold">Health Score Breakdown</div>
+      <div className="space-y-4">
         {items.map(item => {
           const pct = Math.round((item.score / item.max) * 100);
-          const col = pct >= 80 ? '#4df0a0' : pct >= 50 ? '#4d8ff0' : pct >= 25 ? '#f09a4d' : '#f04d4d';
+          const col = pct >= 80 ? 'var(--success)' : pct >= 50 ? 'var(--info)' : pct >= 25 ? 'var(--warning)' : 'var(--destructive)';
           return (
-            <div key={item.label} className="flex items-center gap-3">
-              <span className="text-xs text-[#5a6478] font-mono w-28 shrink-0">{item.label}</span>
-              <div className="flex-1 h-2 bg-[#252b32] rounded-full overflow-hidden">
+            <div key={item.label} className="flex items-center gap-4">
+              <span className="text-xs text-muted-foreground w-28 shrink-0 font-medium">{item.label}</span>
+              <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                 <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: col }} />
               </div>
-              <span className="text-xs font-mono font-bold w-8 text-right" style={{ color: col }}>{item.score}</span>
-              <span className="text-[10px] text-[#5a6478] font-mono w-6">/{item.max}</span>
-              <span className="text-xs font-mono text-[#9aa5b4] w-16 text-right">{item.val}</span>
+              <div className="flex items-center gap-1.5 w-32 justify-end">
+                <span className="text-xs font-bold font-mono" style={{ color: col }}>{item.score}</span>
+                <span className="text-[10px] text-muted-foreground font-mono">/{item.max}</span>
+                <span className="text-[10px] font-bold uppercase tracking-tighter text-muted-foreground bg-muted px-1.5 py-0.5 rounded truncate max-w-[60px]">{item.val}</span>
+              </div>
             </div>
           );
         })}
-        <div className="flex items-center gap-3 pt-1 border-t border-[#252b32]">
-          <span className="text-xs font-bold text-[#e2e8f0] font-mono w-28">Total Score</span>
-          <div className="flex-1 h-2 bg-[#252b32] rounded-full overflow-hidden">
-            <div className="h-full rounded-full transition-all" style={{ width: `${score}%`, background: healthColor(score) }} />
+        <div className="flex items-center gap-4 pt-4 border-t border-border mt-2">
+          <span className="text-xs font-bold text-foreground w-28 uppercase tracking-widest">Total Result</span>
+          <div className="flex-1 h-3 bg-muted rounded-full overflow-hidden">
+            <div className="h-full rounded-full transition-all shadow-sm" style={{ width: `${score}%`, background: healthColor(score) }} />
           </div>
-          <span className="text-sm font-mono font-bold w-8 text-right" style={{ color: healthColor(score) }}>{score}</span>
-          <span className="text-[10px] text-[#5a6478] font-mono w-6">/100</span>
-          <span className="text-xs font-mono font-bold w-16 text-right" style={{ color: healthColor(score) }}>{healthLabel(score)}</span>
+          <div className="flex items-center gap-2 w-32 justify-end font-mono">
+            <span className="text-sm font-bold" style={{ color: healthColor(score) }}>{score}</span>
+            <span className="text-[10px] text-muted-foreground">/100</span>
+            <span className="text-[10px] font-bold uppercase py-0.5 px-2 rounded" style={{ backgroundColor: `${healthColor(score)}20`, color: healthColor(score) }}>{healthLabel(score)}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -1185,21 +1271,21 @@ function HealthBreakdown({ domain, latest, score }: {
 
 function RepBadge({ val }: { val: string }) {
   const map: Record<string, string> = {
-    HIGH:    'bg-[#0d2e1e] text-[#4df0a0]',
-    MEDIUM:  'bg-[#0d1e3e] text-[#4d8ff0]',
-    LOW:     'bg-[#2e1e0d] text-[#f09a4d]',
-    BAD:     'bg-[#2e0d0d] text-[#f04d4d]',
-    inbox:   'bg-[#0d2e1e] text-[#4df0a0]',
-    spam:    'bg-[#2e1e0d] text-[#f09a4d]',
-    blocked: 'bg-[#2e0d0d] text-[#f04d4d]',
+    HIGH:    'bg-success/10 text-success border-success/20',
+    MEDIUM:  'bg-info/10 text-info border-info/20',
+    LOW:     'bg-warning/10 text-warning border-warning/20',
+    BAD:     'bg-destructive/10 text-destructive border-destructive/20',
+    inbox:   'bg-success/10 text-success border-success/20',
+    spam:    'bg-warning/10 text-warning border-warning/20',
+    blocked: 'bg-destructive/10 text-destructive border-destructive/20',
   };
-  const cls = map[val] ?? 'text-[#5a6478]';
-  return <span className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded font-mono ${cls}`}>{val || '—'}</span>;
+  const cls = map[val] ?? 'text-muted-foreground border-border/50';
+  return <span className={`inline-block text-[10px] font-bold uppercase tracking-tight px-1.5 py-0.5 rounded border ${cls}`}>{val || '—'}</span>;
 }
 
 function SpamRateBadge({ rate }: { rate: string }) {
   const n = parseFloat((rate ?? '').replace('%', ''));
-  if (isNaN(n)) return <span className="text-[#5a6478] font-mono text-xs">—</span>;
-  const color = n === 0 ? '#4df0a0' : n < 0.1 ? '#4df0a0' : n < 0.5 ? '#f09a4d' : '#f04d4d';
-  return <span className="font-mono text-xs font-bold" style={{ color }}>{rate}</span>;
+  if (isNaN(n)) return <span className="text-muted-foreground font-mono text-xs">—</span>;
+  const color = n < 0.1 ? 'text-success' : n < 0.5 ? 'text-warning' : 'text-destructive';
+  return <span className={`font-mono text-xs font-bold ${color}`}>{rate}</span>;
 }
